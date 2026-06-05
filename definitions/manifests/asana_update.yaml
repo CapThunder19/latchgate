@@ -1,0 +1,61 @@
+# asana_update — update an existing Asana task.
+#
+# Medium risk: modifies work items. Budget-controlled.
+
+action_id: "asana_update"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: PUT
+  url_template: "https://app.asana.com/api/1.0/tasks/{{task_id}}"
+  headers:
+    Content-Type: "application/json"
+    Accept: "application/json"
+  body_template:
+    data: "{{data}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - task_id
+      - data
+    additionalProperties: false
+    properties:
+      task_id:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: "Asana task GID."
+      data:
+        type: string
+        maxLength: 65536
+        description: "Updated task fields (JSON string with name, due_on, assignee, etc.)."
+  max_request_bytes: 65536
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "app.asana.com"
+
+secrets:
+  - name: "ASANA_ACCESS_TOKEN"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

@@ -1,0 +1,13 @@
+[preset]
+name = "team"
+description = "Agent plus email, messaging, calendar, and notes. Sending messages and creating events require approval."
+
+# Superset of "agent": adds Gmail, Slack, Discord, Teams, Telegram,
+# Google Calendar, Obsidian, and SendGrid.
+manifests = "tagged:team"
+
+[preset.policy]
+# Low and medium risk auto-granted. High/critical (gmail_send,
+# gcal_create_event, sendgrid_send, etc.) require a named principal
+# or human approval.
+wildcard_grant = "risk_below:high"

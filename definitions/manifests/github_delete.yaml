@@ -1,0 +1,67 @@
+# github_delete — destructive GitHub API operation via template action.
+#
+# Critical risk: DELETE against api.github.com. Requires human approval.
+# Only allowed for agent:test-agent in the default ACL (demonstrates scoping).
+
+action_id: "github_delete"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: DELETE
+  url_template: "https://api.github.com/{{path}}"
+  headers:
+    Accept: "application/vnd.github.v3+json"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      path:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "API path to DELETE, e.g. repos/owner/repo/issues/1"
+    required:
+      - path
+    additionalProperties: false
+  response_schema:
+    type: object
+    required: [ok]
+    additionalProperties: false
+    properties:
+      ok: { type: boolean }
+      data:
+        type: object
+        properties:
+          status: { type: integer, description: "HTTP status (204 = deleted)." }
+          deleted_resource: { type: string, description: "Path of the deleted resource." }
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.github.com"
+
+secrets:
+  - name: "GITHUB_TOKEN"
+    required: true
+
+risk_level: "critical"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok"]
+
+declared_side_effects:
+  - "http_delete"

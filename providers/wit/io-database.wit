@@ -1,0 +1,53 @@
+/// Host-mediated database client — controlled SQL modes.
+///
+/// The provider sends either a predeclared statement ID or a parameterized
+/// query. The host resolves statements from the manifest, classifies the
+/// operation, enforces mode rules, manages connection pooling, TLS, and
+/// credential injection.
+///
+/// Sink validation: the host checks the target database identifier
+/// against allowed_sinks before executing.
+///
+/// SECURITY: the provider never controls which database is targeted.
+/// The host enforces database_mode rules before any SQL reaches the DB.
+
+interface io-database {
+    /// A database request: either a predeclared statement or a parameterized query.
+    ///
+    /// SECURITY: sending both statement-id and query simultaneously is rejected
+    /// by the host. Sending neither is also rejected.
+    record database-request {
+        /// Predeclared statement identifier from the action manifest.
+        /// Mutually exclusive with `query`.
+        statement-id: option<string>,
+
+        /// Parameterized SQL query (agent-authored).
+        /// Mutually exclusive with `statement-id`.
+        /// Only allowed when database_mode permits parameterized queries
+        /// for the classified operation type.
+        query: option<string>,
+
+        /// Positional parameters bound into the SQL statement.
+        params: list<string>,
+    }
+
+    record query-result {
+        rows-affected: u64,
+        transaction-id: string,
+        columns: list<string>,
+        rows-json: string,
+    }
+
+    /// Execute a database operation through the host.
+    ///
+    /// The host:
+    /// 1. Validates the request shape (statement-id XOR query).
+    /// 2. Resolves statement-id to SQL from the manifest (if applicable).
+    /// 3. Classifies the operation (SELECT, INSERT, UPDATE, DELETE, etc.).
+    /// 4. Enforces database_mode rules (strict/parameterized/hybrid).
+    /// 5. Executes the query with injected credentials.
+    ///
+    /// Fails if: mode rules are violated, operation is blocked, the target
+    /// database is not configured, or the query fails.
+    execute-query: func(req: database-request) -> result<query-result, string>;
+}

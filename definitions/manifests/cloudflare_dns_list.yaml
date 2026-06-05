@@ -1,0 +1,54 @@
+# cloudflare_dns_list — list Cloudflare DNS records for a zone.
+#
+# Low risk: read-only DNS record enumeration.
+
+action_id: "cloudflare_dns_list"
+version: "1.0.0"
+tags: ["devops"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://api.cloudflare.com/client/v4/zones/{{zone_id}}/dns_records"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - zone_id
+    additionalProperties: false
+    properties:
+      zone_id:
+        type: string
+        minLength: 1
+        maxLength: 64
+        pattern: "^[a-f0-9]+$"
+        description: "Cloudflare zone identifier."
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.cloudflare.com"
+
+secrets:
+  - name: "CLOUDFLARE_API_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

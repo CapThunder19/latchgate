@@ -1,0 +1,7 @@
+[preset]
+name = "lockdown"
+description = "Full action catalog, nothing auto-granted. Every action requires a named principal or explicit approval."
+manifests = "all"
+
+[preset.policy]
+wildcard_grant = "none"

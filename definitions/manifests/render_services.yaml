@@ -1,0 +1,53 @@
+# render_services — list Render services and deployments.
+#
+# Low risk: read-only.
+
+action_id: "render_services"
+version: "1.0.0"
+tags: ["devops"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://api.render.com/v1/{{endpoint}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - endpoint
+    additionalProperties: false
+    properties:
+      endpoint:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Render API path, e.g. services, services/srv-xxx/deploys"
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.render.com"
+
+secrets:
+  - name: "RENDER_API_KEY"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

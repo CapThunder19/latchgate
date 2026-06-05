@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose a new capability or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do that LatchGate doesn't support today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you'd expect this to work. Include API surface, config, or behavior changes if you have something in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about and why they're worse.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - API / routing
+        - Auth / DPoP / leases
+        - Policy / OPA / approvals
+        - Provider runtime / WASM
+        - Ledger / receipts
+        - Configuration
+        - CLI
+        - SDK (Python)
+        - SDK (TypeScript)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: security-surface
+    attributes:
+      label: Security surface
+      options:
+        - label: This feature touches security boundaries (auth, policy, isolation, secrets, egress)

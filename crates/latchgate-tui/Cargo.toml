@@ -1,0 +1,27 @@
+[package]
+name = "latchgate-tui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Interactive operator terminal for LatchGate"
+
+[dependencies]
+latchgate-client = { workspace = true }
+latchgate-config = { workspace = true }
+latchgate-core   = { workspace = true }
+latchgate-embed  = { workspace = true }
+latchgate-registry = { workspace = true }
+
+ratatui   = { workspace = true }
+crossterm = { workspace = true }
+futures   = { workspace = true }
+tokio     = { workspace = true }
+serde_json = { workspace = true }
+chrono     = { workspace = true }
+unicode-width = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }
+[lints]
+workspace = true

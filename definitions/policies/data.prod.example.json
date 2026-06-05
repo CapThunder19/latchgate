@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "LatchGate OPA policy data — PRODUCTION template.",
+    "",
+    "The wildcard principal ('*') is intentionally absent. In production,",
+    "every agent must be explicitly mapped to its allowed actions and sinks.",
+    "Copy this file to data.json and adjust for your environment."
+  ],
+
+  "policy_version": "v1-prod",
+
+  "acl": {
+    "agent:my-agent": {
+      "_comment": "Least-privilege: only the actions and sinks this agent needs.",
+      "allowed_actions": ["http_fetch"],
+      "allowed_sinks": ["http_read"]
+    }
+  }
+}

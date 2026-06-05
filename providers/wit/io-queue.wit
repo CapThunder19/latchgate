@@ -1,0 +1,27 @@
+/// Host-mediated message queue client.
+///
+/// The provider builds a publish request. The kernel (host) manages
+/// broker connections, TLS, and credential injection via lapin/amqp.
+///
+/// Sink validation: the host checks the queue name against
+/// allowed_sinks before publishing.
+
+interface io-queue {
+    record publish-request {
+        queue-name: string,
+        payload: list<u8>,
+        routing-key: option<string>,
+        headers: list<tuple<string, string>>,
+    }
+
+    record publish-ack {
+        delivery-tag: string,
+        queue-name: string,
+    }
+
+    /// Publish a message through the host queue client.
+    ///
+    /// Fails if the target queue is not in allowed_sinks, if broker
+    /// credentials are unavailable, or if the broker rejects the message.
+    publish: func(req: publish-request) -> result<publish-ack, string>;
+}

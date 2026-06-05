@@ -1,0 +1,86 @@
+# sendgrid_send — send transactional email via SendGrid API.
+#
+# High risk: sends email to external recipients. Requires human approval.
+
+action_id: "sendgrid_send"
+version: "1.0.0"
+tags: ["team"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.sendgrid.com/v3/mail/send"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    personalizations: "{{personalizations}}"
+    from: "{{from}}"
+    subject: "{{subject}}"
+    content: "{{content}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      personalizations:
+        type: string
+        maxLength: 65536
+        description: "Personalizations array (JSON string)."
+      from:
+        type: string
+        maxLength: 256
+        description: "Sender object (JSON string), e.g. {\"email\":\"noreply@example.com\"}"
+      subject:
+        type: string
+        minLength: 1
+        maxLength: 998
+        description: "Email subject line."
+      content:
+        type: string
+        maxLength: 262144
+        description: "Content array (JSON string), e.g. [{\"type\":\"text/plain\",\"value\":\"Hello\"}]"
+    required:
+      - personalizations
+      - from
+      - subject
+      - content
+    additionalProperties: false
+  response_schema:
+    type: object
+    required: [ok]
+    additionalProperties: false
+    properties:
+      ok: { type: boolean }
+      data:
+        type: object
+        properties:
+          status: { type: integer, description: "HTTP status from SendGrid API." }
+          x_message_id: { type: string, description: "SendGrid message tracking ID." }
+  max_request_bytes: 262144
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.sendgrid.com"
+
+secrets:
+  - name: "SENDGRID_API_KEY"
+    required: true
+
+risk_level: "high"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok", "data"]
+
+declared_side_effects:
+  - "http_write"

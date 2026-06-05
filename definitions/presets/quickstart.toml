@@ -1,0 +1,13 @@
+[preset]
+name = "quickstart"
+description = "Four actions for a first evaluation — two auto-allowed reads and two gated writes. No external credentials required."
+
+# http_fetch + fs_read are low-risk (auto-allowed).
+# http_post + fs_write are medium/high-risk (operator approval required).
+manifests = "listed:http_fetch,http_post,fs_read,fs_write"
+
+[preset.policy]
+# Auto-grant only low-risk actions to the wildcard principal.
+# Medium and above require explicit operator approval, demonstrating
+# the human-in-the-loop flow without any configuration.
+wildcard_grant = "risk_below:medium"

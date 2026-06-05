@@ -1,0 +1,71 @@
+# gcal_delete_event — delete a Google Calendar event.
+#
+# High risk: irreversible removal of calendar entries. Requires approval.
+
+action_id: "gcal_delete_event"
+version: "1.0.0"
+tags: ["team"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: DELETE
+  url_template: "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      calendar_id:
+        type: string
+        minLength: 1
+        maxLength: 256
+        default: "primary"
+        description: "Calendar ID. Use 'primary' for the user's default calendar."
+      event_id:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Event ID to delete."
+    required:
+      - event_id
+    additionalProperties: false
+  response_schema:
+    type: object
+    required: [ok]
+    additionalProperties: false
+    properties:
+      ok: { type: boolean }
+      data:
+        type: object
+        properties:
+          status: { type: integer, description: "HTTP status (204 = deleted)." }
+  max_request_bytes: 1024
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "www.googleapis.com"
+
+secrets:
+  - name: "GOOGLE_ACCESS_TOKEN"
+    required: true
+
+risk_level: "high"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok"]
+
+declared_side_effects:
+  - "http_write"

@@ -1,0 +1,122 @@
+/// Host-mediated filesystem operations.
+///
+/// The provider calls read/write/delete with a relative path. The host
+/// validates the path against the grant's allowlists, performs the I/O,
+/// and records evidence for the receipt.
+///
+/// The provider has zero ambient filesystem authority. Every operation
+/// traverses host validation: null-byte rejection => traversal rejection =>
+/// lexical deny/allow precheck => root-relative resolution => secure open
+/// (openat2 / component-walk fallback) => post-open /proc/self/fd
+/// verification => canonical deny/allow postcheck => single-fd I/O.
+
+interface io-fs {
+    /// Write mode for fs-write operations.
+    enum fs-write-mode {
+        /// Create a new file. Fails if the file already exists.
+        create,
+        /// Overwrite an existing file. Fails if it does not exist.
+        overwrite,
+    }
+
+    /// Error conditions for filesystem operations.
+    ///
+    /// Every failure path has a typed variant — no panics, no stringly-typed
+    /// errors that callers must parse.
+    enum fs-error {
+        /// The requested operation (read, create, overwrite, delete) is not
+        /// listed in the grant's allowed-operations.
+        operation-not-allowed,
+        /// Path is not covered by the grant's allowed-paths.
+        path-not-allowed,
+        /// Path is explicitly in the grant's denied-paths.
+        path-denied,
+        /// Target file or directory does not exist (read/delete).
+        path-not-found,
+        /// Path contains null bytes, control characters (0x00..=0x1F, 0x7F),
+        /// absolute prefix, platform prefix, or malformed UTF-8.
+        path-invalid,
+        /// File already exists (create mode).
+        already-exists,
+        /// Content exceeds max-file-bytes limit (checked on decoded bytes).
+        too-large,
+        /// Symlink detected during open (O_NOFOLLOW) or post-open fd path
+        /// verification revealed the canonical path escapes the root.
+        symlink-escape,
+        /// Path contains `..` segments.
+        traversal,
+        /// Target is a device file, FIFO, socket, or procfs/sysfs magic file.
+        /// v0.1 supports regular files only.
+        special-file,
+        /// Optimistic concurrency conflict: the caller supplied
+        /// expected-before-hash and the current file hash does not match.
+        /// No write was performed.
+        conflict,
+        /// Base64 decode failure in the provider (before host call).
+        invalid-content,
+        /// Underlying I/O error from the host filesystem.
+        io-error,
+    }
+
+    record fs-read-input {
+        path: string,
+    }
+
+    record fs-read-output {
+        /// Raw file content.
+        content: list<u8>,
+        /// SHA-256 digest of content, computed by the host.
+        hash: list<u8>,
+        /// Size of content in bytes.
+        size-bytes: u64,
+    }
+
+    record fs-write-input {
+        path: string,
+        /// Raw content bytes (decoded from base64 by the provider).
+        content: list<u8>,
+        mode: fs-write-mode,
+
+        /// Optional optimistic concurrency guard.
+        /// If present, overwrite succeeds only if the current file's SHA-256
+        /// matches this value. Mismatch returns fs-error::conflict without
+        /// writing. Ignored for create mode.
+        expected-before-hash: option<list<u8>>,
+    }
+
+    record fs-write-output {
+        /// SHA-256 of the file content before this operation.
+        /// None for create (file did not exist).
+        /// Some(hash) for overwrite.
+        before-hash: option<list<u8>>,
+
+        /// SHA-256 of the written content, computed by the host.
+        after-hash: list<u8>,
+
+        /// File size in bytes before this operation (0 for create).
+        bytes-before: u64,
+
+        /// Number of bytes written.
+        bytes-written: u64,
+    }
+
+    record fs-delete-input {
+        path: string,
+    }
+
+    /// Delete produces no meaningful output on success. The `ok` field is a
+    /// placeholder required by the component model encoder (wit-bindgen does
+    /// not support empty records). Always `true` on success.
+    record fs-delete-output {
+        ok: bool,
+    }
+
+    /// Read a file through the host's path-validation pipeline.
+    read: func(req: fs-read-input) -> result<fs-read-output, fs-error>;
+
+    /// Write a file through the host's path-validation pipeline.
+    write: func(req: fs-write-input) -> result<fs-write-output, fs-error>;
+
+    /// Delete a file through the host's path-validation pipeline.
+    delete: func(req: fs-delete-input) -> result<fs-delete-output, fs-error>;
+}

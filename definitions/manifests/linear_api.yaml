@@ -1,0 +1,60 @@
+# linear_api — create or query Linear issues via GraphQL API.
+#
+# Medium risk: creates/updates work items. No approval required.
+
+action_id: "linear_api"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.linear.app/graphql"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    query: "{{query}}"
+    variables: "{{variables}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      query:
+        type: string
+        minLength: 1
+        maxLength: 65536
+        description: "GraphQL query or mutation."
+      variables:
+        type: string
+        maxLength: 65536
+        description: "GraphQL variables (JSON string)."
+    required:
+      - query
+    additionalProperties: false
+  max_request_bytes: 65536
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.linear.app"
+
+secrets:
+  - name: "LINEAR_API_KEY"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

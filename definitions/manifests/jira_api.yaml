@@ -1,0 +1,61 @@
+# jira_api — create or update Jira issues via REST API.
+#
+# Medium risk: creates/updates work items. No approval required.
+
+action_id: "jira_api"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://{{domain}}/rest/api/3/issue"
+  headers:
+    Content-Type: "application/json"
+    Accept: "application/json"
+  body_template:
+    fields: "{{fields}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      domain:
+        type: string
+        minLength: 1
+        maxLength: 253
+        description: "Jira instance domain, e.g. mycompany.atlassian.net"
+      fields:
+        type: string
+        maxLength: 65536
+        description: "Issue fields JSON (project, summary, issuetype, etc.)."
+    required:
+      - domain
+      - fields
+    additionalProperties: false
+  max_request_bytes: 65536
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "*.atlassian.net"
+
+secrets:
+  - name: "JIRA_API_TOKEN"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

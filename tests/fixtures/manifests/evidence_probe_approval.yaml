@@ -1,0 +1,47 @@
+# evidence_probe_approval — high-risk variant of evidence_probe.
+#
+# Identical WASM fixture and I/O contract as evidence_probe, but
+# declared risk_level: high so the OPA policy routes it through the
+# human-approval pipeline. Paired with tests that verify security
+# invariants on the approval path (budget debit in
+# `prepare_approved_execution`, shared execution tail, evidence
+# finalisation) without depending on a network-bound provider.
+#
+# The `{{PROVIDER_DIGEST}}` placeholder is substituted by the test
+# harness at runtime with the actual SHA-256 digest of the compiled
+# fixture_evidence_probe.wasm — see `tests/integration/harness.rs`.
+
+action_id: "evidence_probe_approval"
+version: "1.0.0"
+provider_module_digest: "{{PROVIDER_DIGEST}}"
+provider_source: "fixture_evidence_probe.wasm"
+
+required_imports:
+  - "latchgate:io/log"
+
+resource_limits:
+  fuel: 500000
+  memory_mb: 32
+  timeout_seconds: 5
+  max_io_calls: 0
+
+io:
+  request_schema:
+    type: object
+    additionalProperties: false
+  response_schema:
+    type: object
+    properties:
+      ok: { type: boolean }
+  max_request_bytes: 4096
+  max_response_bytes: 4096
+
+egress:
+  profile: "none"
+
+secrets: []
+
+risk_level: "high"
+verifier_kind: http_status
+
+declared_side_effects: []

@@ -1,0 +1,59 @@
+# slack_read — read messages from a Slack channel via conversations.history.
+#
+# Low risk: read-only access to channel messages.
+
+action_id: "slack_read"
+tags: ["team", "research"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://slack.com/api/conversations.history?channel={{channel}}&limit={{limit}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      channel:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: "Slack channel ID (e.g. C01ABCDEF)."
+      limit:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+        description: "Number of messages to retrieve."
+    required:
+      - channel
+    additionalProperties: false
+  max_request_bytes: 1024
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.slack.com"
+
+secrets:
+  - name: "SLACK_BOT_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

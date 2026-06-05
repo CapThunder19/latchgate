@@ -1,0 +1,92 @@
+action_id: "fs_delete"
+version: "1.0.0"
+provider_module_digest: "builtin:fs"
+tags: ["agent", "team", "coding"]
+
+# Critical risk — OPA rule triggers human approval.
+# approval_required is NOT a manifest field — approval is policy-driven.
+#
+# Risk rationale: destructive, no rollback for deleted files.
+# See RISK_MODEL.md.
+
+required_imports:
+  - "latchgate:io/fs"
+  - "latchgate:io/log"
+
+fs:
+  allowed_operations: [delete]
+  allowed_paths:
+    - "src/**"
+    - "tests/**"
+  denied_paths:
+    # Secrets / credentials
+    - "**/.env"
+    - "**/.env.*"
+    - "**/secrets/**"
+    - "**/.ssh/**"
+    - "**/.aws/**"
+    - "**/.gcloud/**"
+    - "**/.kube/**"
+
+    # Version control
+    - "**/.git/**"
+    - "**/.gitignore"
+    - "**/.gitattributes"
+
+    # CI / pipelines
+    - "**/.github/**"
+    - "**/.gitlab-ci.yml"
+    - "**/.circleci/**"
+    - "**/.buildkite/**"
+    - "**/Jenkinsfile"
+    - "**/azure-pipelines.yml"
+
+    # Container / IaC
+    - "**/Dockerfile*"
+    - "**/docker-compose*"
+    - "**/Makefile"
+    - "**/*.tf"
+    - "**/*.tfvars"
+    - "**/terraform.tfstate*"
+
+    # Package manifests
+    - "**/package.json"
+    - "**/package-lock.json"
+    - "**/pyproject.toml"
+    - "**/Cargo.toml"
+    - "**/Cargo.lock"
+    - "**/go.mod"
+    - "**/go.sum"
+
+    # Dependency caches
+    - "**/node_modules/**"
+    - "**/target/**"
+    - "**/.venv/**"
+    - "**/__pycache__/**"
+
+    # LatchGate self-protection
+    - "**/latchgate.toml"
+    - "**/.latchgate/**"
+    - "**/policies/**"
+
+io:
+  request_schema:
+    type: object
+    required: [operation, path]
+    additionalProperties: false
+    properties:
+      operation:
+        type: string
+        enum: ["delete"]
+      path: { type: string, minLength: 1, maxLength: 4096 }
+
+resource_limits:
+  fuel: 1000000
+  memory_mb: 64
+  timeout_seconds: 5
+  max_io_calls: 10
+  max_host_response_bytes: 1048576
+
+risk_level: "critical"
+verifier_kind: fs_hash
+declared_side_effects: ["fs_delete"]

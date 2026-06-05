@@ -1,0 +1,66 @@
+# confluence_write — create or update Confluence pages.
+#
+# Medium risk: modifies documentation in Confluence Cloud.
+
+action_id: "confluence_write"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://{{domain}}/wiki/api/v2/{{endpoint}}"
+  headers:
+    Content-Type: "application/json"
+    Accept: "application/json"
+  body_template: "{{body}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - domain
+      - endpoint
+      - body
+    additionalProperties: false
+    properties:
+      domain:
+        type: string
+        minLength: 1
+        maxLength: 253
+        description: "Confluence Cloud domain, e.g. mycompany.atlassian.net"
+      endpoint:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "Confluence REST API path, e.g. pages, pages/12345"
+      body:
+        type: string
+        maxLength: 262144
+        description: "Request body (JSON string with title, body, spaceId, etc.)."
+  max_request_bytes: 262144
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "*.atlassian.net"
+
+secrets:
+  - name: "ATLASSIAN_API_TOKEN"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

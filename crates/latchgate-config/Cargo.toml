@@ -1,0 +1,29 @@
+[package]
+name = "latchgate-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Configuration parsing, validation, and environment overlay for LatchGate"
+
+[features]
+default = []
+unsafe-dev = []
+test-support = []
+
+[dependencies]
+latchgate-core = { workspace = true }
+serde           = { workspace = true }
+toml            = { workspace = true }
+tracing         = { workspace = true }
+directories     = { workspace = true }
+url             = { workspace = true }
+thiserror       = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+[lints]
+workspace = true

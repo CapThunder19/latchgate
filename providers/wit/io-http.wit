@@ -1,0 +1,32 @@
+/// Host-mediated HTTP client.
+///
+/// The provider calls request with URL, method, headers, and body.
+/// The kernel (host) intercepts the call and:
+///   1. Validates the URL against allowed_sinks from the execution grant.
+///   2. Injects credentials (Authorization, API-Key) from the secrets store.
+///   3. Executes the request via reqwest.
+///   4. Returns the response to the provider.
+///
+/// The provider never sees credentials and cannot bypass sink validation.
+
+interface io-http {
+    record http-request {
+        method: string,
+        url: string,
+        headers: list<tuple<string, string>>,
+        body: option<list<u8>>,
+        timeout-ms: u32,
+    }
+
+    record http-response {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        body: list<u8>,
+    }
+
+    /// Execute an HTTP request through the host.
+    ///
+    /// Fails if the target URL is not in allowed_sinks, if credential
+    /// injection fails, or if the upstream returns a transport error.
+    request: func(req: http-request) -> result<http-response, string>;
+}

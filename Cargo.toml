@@ -1,0 +1,288 @@
+[workspace]
+members = [
+    "crates/latchgate-core",
+    "crates/latchgate-crypto",
+    "crates/latchgate-config",
+    "crates/latchgate-auth",
+    "crates/latchgate-registry",
+    "crates/latchgate-policy",
+    "crates/latchgate-state",
+    "crates/latchgate-providers",
+    "crates/latchgate-ledger",
+    "crates/latchgate-kernel",
+    "crates/latchgate-api",
+    "crates/latchgate-client",
+    "crates/latchgate-cli",
+    "crates/latchgate-tui",
+    "crates/latchgate-mcp",
+    "crates/latchgate-webhooks",
+    "crates/latchgate-embed",
+    "crates/latchgate-sandbox",
+    "crates/latchgate-bin",
+    "tests",
+    "tests/stress",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.dependencies]
+# Internal crates
+latchgate-core      = { path = "crates/latchgate-core", version = "0.1.0" }
+latchgate-crypto    = { path = "crates/latchgate-crypto", version = "0.1.0" }
+latchgate-config    = { path = "crates/latchgate-config", version = "0.1.0" }
+latchgate-client    = { path = "crates/latchgate-client", version = "0.1.0" }
+latchgate-tui       = { path = "crates/latchgate-tui", version = "0.1.0" }
+latchgate-auth      = { path = "crates/latchgate-auth", version = "0.1.0" }
+latchgate-registry  = { path = "crates/latchgate-registry", version = "0.1.0" }
+latchgate-policy    = { path = "crates/latchgate-policy", version = "0.1.0" }
+latchgate-state     = { path = "crates/latchgate-state", version = "0.1.0" }
+latchgate-providers = { path = "crates/latchgate-providers", version = "0.1.0" }
+latchgate-ledger    = { path = "crates/latchgate-ledger", version = "0.1.0" }
+latchgate-kernel    = { path = "crates/latchgate-kernel", version = "0.1.0" }
+latchgate-api       = { path = "crates/latchgate-api", version = "0.1.0" }
+latchgate-embed     = { path = "crates/latchgate-embed", version = "0.1.0" }
+latchgate-cli       = { path = "crates/latchgate-cli", version = "0.1.0" }
+latchgate-mcp       = { path = "crates/latchgate-mcp", version = "0.1.0" }
+latchgate-webhooks  = { path = "crates/latchgate-webhooks", version = "0.1.0" }
+latchgate-sandbox   = { path = "crates/latchgate-sandbox", version = "0.1.0" }
+
+# Async & HTTP
+axum       = "0.8"
+tokio      = { version = "1.52", features = ["full"] }
+tower      = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace", "limit"] }
+reqwest    = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "json"] }
+hyper      = { version = "1", features = ["http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+
+# HTTP body utilities (latchgate-client UDS transport)
+bytes          = "1"
+http-body-util = "0.1"
+
+# TLS (admin mTLS)
+rustls          = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+tokio-rustls    = "0.26"
+rustls-pemfile  = "2"
+rustls-pki-types = "1"
+webpki-roots    = "1.0"
+
+# Serialization
+serde      = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"                    # Do NOT enable "arbitrary_precision" — breaks JCS
+                                    # Do NOT enable "preserve_order" — breaks plan hash determinism
+                                    # (plan_hash depends on stable serde_json map ordering)
+                                    # Guarded by: latchgate-core/src/canonical.rs invariant tests
+serde_urlencoded = "0.7"
+serde_yaml_ng = "0.10"
+toml       = "1"
+
+# Crypto & identity
+jsonwebtoken            = "9"
+p256                    = { version = "0.13", features = ["ecdsa", "pem", "jwk"] }
+rand                    = "0.8"
+sha2                    = "0.11"
+hex                     = "0.4"
+base64ct                = { version = "1", features = ["alloc"] }
+ed25519-dalek           = { version = "2", features = ["rand_core"] }
+subtle                  = "2"
+zeroize                 = "1"
+serde_json_canonicalizer = "0.3"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
+
+# TUI (ratatui re-exports crossterm 0.29; the separate crossterm dep
+# exists solely to enable `event-stream` for async EventStream via
+# tokio::select!. All crossterm *type* imports use `ratatui::crossterm::`
+# to guarantee a single version.)
+ratatui   = { version = "0.30", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.29", features = ["event-stream"] }
+futures   = "0.3"
+
+# Display-width measurement for TUI text layout (cursor viewport scrolling).
+# Already present transitively via ratatui; pinned here for direct use.
+unicode-width = "0.2"
+
+# Interactive prompts (feature-gated in latchgate-cli)
+dialoguer = "0.11"
+
+# Embedded assets
+include_dir = "0.7"
+
+# Platform directories (XDG on Linux, native on macOS)
+directories = "6"
+
+# Unix libc bindings (uid resolution for runtime dir)
+libc = "0.2"
+
+# Safe Unix syscall wrappers (uid resolution without unsafe)
+rustix = { version = "1.1", features = ["process", "fs"] }
+
+# TOML editing (comment-preserving AST)
+toml_edit = "0.25"
+
+# Observability
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-appender   = "0.2"
+prometheus-client  = "0.24"
+
+# Storage & infrastructure
+redis    = { version = "1.2", features = ["tokio-comp"] }
+rusqlite = { version = "0.39", features = ["bundled", "backup"] }
+
+# Validation
+jsonschema = "0.46"
+
+# URL parsing
+url = "2"
+
+# Glob pattern matching (filesystem path allowlists)
+globset = "0.4"
+
+# Concurrent data structures
+dashmap = "6"
+
+# Embedded OPA evaluator (disable compiled-policy to avoid unmaintained bincode).
+# `glob` is required: the shipped policy uses `glob.match` for sensitive-path
+# detection, and that builtin is only registered when this feature is enabled.
+regorus = { version = "0.10", default-features = false, features = ["std", "glob"] }
+
+# Utilities
+chrono      = { version = "0.4", features = ["serde"] }
+thiserror   = "2"
+uuid        = { version = "1", features = ["v7"] }
+
+# Dev / test (workspace-level)
+tempfile   = "3"
+tokio-test = "0.4"
+rcgen      = "0.13"
+
+# WASM runtime
+wasmtime           = { version = "36.0.10", features = ["component-model", "async", "cranelift"] }
+wasmtime-wasi      = { version = "36.0.10" }
+
+# Host I/O clients (used by latchgate-providers)
+lettre        = { version = "0.11.22", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder", "hostname"] }
+sqlx          = { version = "0.8.2", default-features = false, features = ["runtime-tokio-rustls", "postgres"] }
+lapin         = "2.5"
+deadpool-lapin = { version = "0.12", features = ["rt_tokio_1"] }
+object_store  = { version = "0.13", features = ["aws", "gcp", "azure", "http"] }
+
+# ── Build profiles ─────────────────────────────────────────────────────────────
+
+[profile.dev]
+# Code compiles at opt-level 0 (fast compile, slow runtime) but heavy
+# dependencies get opt-level 2 below. This gives fast iteration while
+# keeping wasmtime/rusqlite/jsonschema from being painfully slow at
+# runtime during integration tests.
+opt-level = 0
+debug     = true
+
+# Compile heavy C/codegen dependencies with optimizations even in dev.
+# These rarely change between builds but dominate runtime without -O2.
+# rusqlite "bundled" compiles SQLite from C — opt-level 2 makes the
+# cc compilation output cacheable and the runtime much faster.
+[profile.dev.package.rusqlite]
+opt-level = 2
+
+[profile.dev.package.libsqlite3-sys]
+opt-level = 2
+
+# wasmtime + cranelift: massive codegen deps, unusably slow at opt-level 0.
+[profile.dev.package.wasmtime]
+opt-level = 2
+
+[profile.dev.package.wasmtime-environ]
+opt-level = 2
+
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 2
+
+[profile.dev.package.cranelift-codegen]
+opt-level = 2
+
+[profile.dev.package.cranelift-frontend]
+opt-level = 2
+
+[profile.dev.package.wasmtime-wasi]
+opt-level = 2
+
+# jsonschema pulls in referencing, boolinator, fancy-regex — all heavy.
+[profile.dev.package.jsonschema]
+opt-level = 2
+
+[profile.dev.package.fancy-regex]
+opt-level = 2
+
+# Crypto — measurably slow at opt-level 0 (ed25519 signing, SHA-256).
+[profile.dev.package.sha2]
+opt-level = 2
+
+[profile.dev.package.ed25519-dalek]
+opt-level = 2
+
+[profile.dev.package.curve25519-dalek]
+opt-level = 2
+
+[profile.dev.package.p256]
+opt-level = 2
+
+# TLS — ring performs symmetric crypto and handshake operations on every
+# outbound provider connection. At opt-level 0 the assembly-free fallback
+# paths are markedly slower, penalising integration tests that exercise
+# real provider I/O (HTTPS, SMTP, DB).
+[profile.dev.package.ring]
+opt-level = 2
+
+[profile.dev.package.rustls]
+opt-level = 2
+
+# OPA policy evaluator — regorus is an interpreter that runs on every
+# policy decision. At opt-level 0 the evaluation overhead penalises
+# integration tests that exercise the full enforcement pipeline.
+[profile.dev.package.regorus]
+opt-level = 2
+
+# Tests inherit dev profile. No separate config needed unless you want
+# different opt-level for test-only crates.
+[profile.test]
+inherits = "dev"
+
+[profile.release]
+strip           = true
+lto             = "fat"
+codegen-units   = 1
+overflow-checks = true
+panic           = "abort"
+
+# Identical to release but retains debug info for post-incident forensics.
+# Produces a binary with DWARF sections that can be split into a `.debuginfo`
+# sidecar via `objcopy --only-keep-debug`. Use in CI to ship both a stripped
+# production binary and a debug artifact for symbolicated stack traces.
+#
+#   cargo build --profile release-with-debug
+#
+[profile.release-with-debug]
+inherits        = "release"
+strip           = false
+debug           = 1
+
+# Benchmarks must measure code as it ships. Without this profile, `cargo bench`
+# uses Cargo's built-in defaults (no LTO, codegen-units = 16), which disables the
+# cross-crate inlining the release binary relies on and makes hot-path numbers
+# diverge from production. Inherit release so benches share fat LTO and a single
+# codegen unit; retain symbols so profiles are attributable.
+[profile.bench]
+inherits = "release"
+strip    = false
+debug    = 2

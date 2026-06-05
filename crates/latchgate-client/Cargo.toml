@@ -1,0 +1,32 @@
+[package]
+name = "latchgate-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "HTTP client for LatchGate gate server (UDS + TCP, DPoP auth)"
+
+[dependencies]
+latchgate-core = { workspace = true }
+latchgate-config    = { workspace = true }
+latchgate-auth = { workspace = true }
+
+bytes          = { workspace = true }
+http-body-util = { workspace = true }
+hyper          = { workspace = true, features = ["client"] }
+hyper-util     = { workspace = true, features = ["client", "client-legacy", "http1"] }
+tower          = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+serde_urlencoded = { workspace = true }
+thiserror      = { workspace = true }
+tokio          = { workspace = true }
+url            = { workspace = true }
+uuid           = { workspace = true }
+reqwest        = { workspace = true }
+
+[dev-dependencies]
+p256           = { workspace = true }
+tempfile       = { workspace = true }
+[lints]
+workspace = true

@@ -1,0 +1,78 @@
+name: Bug report
+description: Report incorrect behavior in LatchGate
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **If this is a security vulnerability, do NOT open an issue.**
+        Use [Private Vulnerability Reporting](https://github.com/latchgate-ai/latchgate/security/advisories/new) instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: LatchGate version
+      description: Output of `cargo pkgid latchgate-api` or Docker image tag.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: rust-version
+    attributes:
+      label: Rust version
+      description: Output of `rustc --version`.
+      placeholder: "rustc 1.80.0"
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - API / routing
+        - Auth / DPoP / leases
+        - Policy / OPA / approvals
+        - Provider runtime / WASM
+        - Ledger / receipts
+        - Configuration
+        - CLI
+        - SDK (Python)
+        - SDK (TypeScript)
+        - CI / build
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: Clear description of the bug. Include logs (redact secrets) if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to trigger the bug.
+      placeholder: |
+        1. Configure ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: security-adjacent
+    attributes:
+      label: Security relevance
+      options:
+        - label: This bug may affect security properties (unexpected allow, missing audit event, auth bypass, etc.)

@@ -1,0 +1,92 @@
+# github_actions_trigger — trigger a GitHub Actions workflow dispatch.
+#
+# High risk: starts CI/CD pipelines that may deploy, publish, or
+# consume compute resources. Requires named principal or approval.
+
+action_id: "github_actions_trigger"
+tags: ["agent", "team", "devops"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.github.com/repos/{{owner}}/{{repo}}/actions/workflows/{{workflow_id}}/dispatches"
+  headers:
+    Accept: "application/vnd.github.v3+json"
+    Content-Type: "application/json"
+  body_template:
+    ref: "{{ref}}"
+    inputs: "{{inputs}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - owner
+      - repo
+      - workflow_id
+      - ref
+    additionalProperties: false
+    properties:
+      owner:
+        type: string
+        minLength: 1
+        maxLength: 39
+        description: "Repository owner."
+      repo:
+        type: string
+        minLength: 1
+        maxLength: 100
+        description: "Repository name."
+      workflow_id:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Workflow filename or ID, e.g. ci.yml or 12345."
+      ref:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Git ref to run the workflow on (branch, tag, SHA)."
+      inputs:
+        type: string
+        maxLength: 65536
+        default: "{}"
+        description: "Workflow inputs (JSON string)."
+  response_schema:
+    type: object
+    required: [ok]
+    properties:
+      ok: { type: boolean }
+      data:
+        type: object
+        properties:
+          status: { type: integer }
+  max_request_bytes: 65536
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.github.com"
+
+secrets:
+  - name: "GITHUB_TOKEN"
+    required: true
+
+risk_level: "high"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok"]
+
+declared_side_effects:
+  - "http_write"

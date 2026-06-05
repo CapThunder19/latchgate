@@ -1,0 +1,59 @@
+action_id: "fs_read"
+version: "1.0.0"
+provider_module_digest: "builtin:fs"
+tags: ["agent", "team", "coding"]
+
+# Low risk: read-only, no write side-effects.
+#
+# Risk rationale: read-only, no auth required, no PII.
+# Denied paths protect secrets and LatchGate configuration
+# from exfiltration. See RISK_MODEL.md.
+
+required_imports:
+  - "latchgate:io/fs"
+  - "latchgate:io/log"
+
+fs:
+  allowed_operations: [read]
+  allowed_paths:
+    - "src/**"
+    - "docs/**"
+    - "*.md"
+    - "*.toml"
+  denied_paths:
+    # Secrets / credentials
+    - "**/.env"
+    - "**/.env.*"
+    - "**/secrets/**"
+    - "**/.ssh/**"
+    - "**/.aws/**"
+    - "**/.gcloud/**"
+    - "**/.kube/**"
+    - "**/.git/config"
+
+    # LatchGate self-protection
+    - "**/latchgate.toml"
+    - "**/.latchgate/**"
+  max_file_bytes: 10485760  # 10 MB
+
+io:
+  request_schema:
+    type: object
+    required: [operation, path]
+    additionalProperties: false
+    properties:
+      operation:
+        type: string
+        enum: ["read"]
+      path: { type: string, minLength: 1, maxLength: 4096 }
+
+resource_limits:
+  fuel: 1000000
+  memory_mb: 64
+  timeout_seconds: 5
+  max_io_calls: 100
+  max_host_response_bytes: 10485760
+
+risk_level: "low"
+verifier_kind: fs_hash
+declared_side_effects: ["fs_read"]

@@ -1,0 +1,30 @@
+/// Host-mediated SMTP client.
+///
+/// The provider builds an email message. The kernel (host) handles
+/// TLS, authentication, and connection management via lettre.
+/// SMTP credentials are injected at the host layer.
+///
+/// Sink validation: the host checks recipient domains against
+/// allowed_sinks before sending.
+
+interface io-smtp {
+    record email-message {
+        to: list<string>,
+        cc: list<string>,
+        bcc: list<string>,
+        subject: string,
+        body: string,
+        content-type: string,
+    }
+
+    record send-receipt {
+        message-id: string,
+        recipients: u32,
+    }
+
+    /// Send an email through the host SMTP client.
+    ///
+    /// Fails if recipient domains are not in allowed_sinks, if SMTP
+    /// credentials are missing, or if the mail server rejects the message.
+    send: func(msg: email-message) -> result<send-receipt, string>;
+}

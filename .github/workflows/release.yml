@@ -1,0 +1,537 @@
+# LatchGate release pipeline.
+#
+# Triggered by pushing a tag matching `v*` (e.g. `v0.1.0`).
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+  GHCR_IMAGE: ghcr.io/latchgate-ai/latchgate
+  RUST_TOOLCHAIN: "1.88"
+  # Digest-pinned image for reproducible WASM provider builds.
+  # Updated by: make pin-digests (resolves via docker buildx imagetools).
+  # Ongoing:    Dependabot opens PRs when upstream publishes new digests.
+  PROVIDER_BUILD_IMAGE: "rust:1.88-slim@sha256:38bc5a86d998772d4aec2348656ed21438d20fcdce2795b56ca434cf21430d89"
+
+jobs:
+  # ── 1. Build arch-independent WASM providers + verify digests ──────────────
+
+  providers:
+    name: Build WASM providers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Install PyYAML
+        run: pip install --disable-pip-version-check --quiet pyyaml
+
+      - name: Build WASM provider modules (reproducible, containerised)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/build" \
+            -w /build \
+            ${{ env.PROVIDER_BUILD_IMAGE }} bash -c '
+              apt-get update -qq && apt-get install -y -qq clang >/dev/null 2>&1
+              rustup target add wasm32-wasip2 >/dev/null 2>&1
+              mkdir -p target/providers
+              RUSTFLAGS="--remap-path-prefix=$CARGO_HOME=/cargo --remap-path-prefix=/build=/build" \
+              cargo build --locked --manifest-path providers/Cargo.toml \
+                --workspace --target wasm32-wasip2 --release
+
+              # Copy all compiled provider modules, stripping the crate name
+              # prefix. New providers added to the workspace are picked up
+              # automatically — no manual enumeration needed.
+              WASM_DIR="providers/target/wasm32-wasip2/release"
+              FOUND=0
+              for src in "${WASM_DIR}"/latchgate_provider_*.wasm; do
+                [ -f "$src" ] || continue
+                name=$(basename "$src" | sed "s/^latchgate_provider_//")
+                cp "$src" "target/providers/$name"
+                FOUND=$((FOUND + 1))
+              done
+
+              if [ "$FOUND" -eq 0 ]; then
+                echo "::error::No provider modules found in ${WASM_DIR}"
+                exit 1
+              fi
+
+              echo "::group::Provider modules (${FOUND})"
+              ls -lh target/providers/
+              echo "::endgroup::"
+            '
+
+      # Verify reproducibly-built modules against committed digests.
+      # Lightweight Python verifier — no cargo compilation needed.
+      - name: Verify manifest digests
+        run: |
+          python3 deploy/verify-manifest-digests.py \
+            --manifests-dir definitions/manifests \
+            --providers-dir target/providers
+
+      - name: Generate egress allowlist (squid format)
+        run: |
+          # Derived directly from action manifests — the single source of
+          # truth for permitted egress domains. Mirrors the `squid-allowlist`
+          # Makefile target; no compiled binary required.
+          mkdir -p share/latchgate/egress
+          OUT=share/latchgate/egress/squid-allowlist.txt
+          printf '# Auto-generated from action manifests. Do not edit.\n' > "$OUT"
+          awk '/allowed_domains:/{c=1;next} c&&/^[[:space:]]*- /{sub(/^[[:space:]]*- */,"");gsub(/"/,"");print;next} c{c=0}' \
+            definitions/manifests/*.yaml \
+            | sed 's/^\*\./\./' \
+            | awk '!/^\./{$0="."$0} {print tolower($0)}' \
+            | sort -u >> "$OUT"
+
+          echo "::group::Generated egress allowlist"
+          echo "  $(grep -c '^[^#]' "$OUT") domains => $OUT"
+          cat "$OUT"
+          echo "::endgroup::"
+
+      - name: Upload provider bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: provider-bundle
+          path: |
+            target/providers/*.wasm
+            definitions/manifests/*.yaml
+            share/latchgate/egress/*
+          retention-days: 1
+
+  # ── 2. Build platform binaries + assemble reproducible tarballs ────────────
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: providers
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            cross: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --locked
+
+      - name: Install GNU tar (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gnu-tar
+
+      - name: Build
+        run: |
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --locked --release --target ${{ matrix.target }}
+          else
+            cargo build --locked --release --target ${{ matrix.target }}
+          fi
+
+      - name: Download provider bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: provider-bundle
+          path: _bundle
+
+      - name: Assemble release tarball (reproducible)
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          TARGET="${{ matrix.target }}"
+          BIN_DIR="target/${TARGET}/release"
+          STAGING="latchgate-${VERSION}-${TARGET}"
+
+          SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          export SOURCE_DATE_EPOCH
+          echo "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+
+          for bin in latchgate latchgate-mcp; do
+            if [ ! -f "${BIN_DIR}/${bin}" ]; then
+              echo "::error::Binary ${BIN_DIR}/${bin} not found — build may have failed"
+              exit 1
+            fi
+          done
+
+          mkdir -p "${STAGING}/share/latchgate/manifests"
+          mkdir -p "${STAGING}/share/latchgate/providers"
+          mkdir -p "${STAGING}/share/latchgate/policies"
+          mkdir -p "${STAGING}/share/latchgate/egress"
+
+          cp "${BIN_DIR}/latchgate" "${BIN_DIR}/latchgate-mcp" "${STAGING}/"
+          cp _bundle/definitions/manifests/*.yaml          "${STAGING}/share/latchgate/manifests/"
+          cp _bundle/target/providers/*.wasm        "${STAGING}/share/latchgate/providers/"
+          cp -r definitions/policies/opa                        "${STAGING}/share/latchgate/policies/"
+          cp _bundle/share/latchgate/egress/*       "${STAGING}/share/latchgate/egress/"
+
+          # Derive expected counts from source tree and provider bundle —
+          # no hardcoded thresholds to go stale.
+          EXPECTED_MANIFESTS=$(find definitions/manifests -name '*.yaml' | wc -l | tr -d ' ')
+          EXPECTED_PROVIDERS=$(find _bundle/target/providers -name '*.wasm' | wc -l | tr -d ' ')
+
+          MANIFEST_COUNT=$(find "${STAGING}/share/latchgate/manifests" -name '*.yaml' | wc -l | tr -d ' ')
+          PROVIDER_COUNT=$(find "${STAGING}/share/latchgate/providers" -name '*.wasm' | wc -l | tr -d ' ')
+          POLICY_COUNT=$(find "${STAGING}/share/latchgate/policies/opa" -name '*.rego' | wc -l | tr -d ' ')
+
+          echo "  Manifests: ${MANIFEST_COUNT} (expected ${EXPECTED_MANIFESTS})"
+          echo "  Providers: ${PROVIDER_COUNT} (expected ${EXPECTED_PROVIDERS})"
+          echo "  Policies:  ${POLICY_COUNT}"
+
+          FAIL=0
+          [ "$MANIFEST_COUNT" -eq "$EXPECTED_MANIFESTS" ] || { echo "::error::Manifest count mismatch: staged ${MANIFEST_COUNT} ≠ source ${EXPECTED_MANIFESTS}"; FAIL=1; }
+          [ "$PROVIDER_COUNT" -eq "$EXPECTED_PROVIDERS" ] || { echo "::error::Provider count mismatch: staged ${PROVIDER_COUNT} ≠ bundle ${EXPECTED_PROVIDERS}"; FAIL=1; }
+          [ "$MANIFEST_COUNT" -gt 0 ]                     || { echo "::error::No manifests found"; FAIL=1; }
+          [ "$PROVIDER_COUNT" -gt 0 ]                     || { echo "::error::No provider modules found"; FAIL=1; }
+          [ "$POLICY_COUNT"   -gt 0 ]                     || { echo "::error::No OPA policy files found"; FAIL=1; }
+          [ "$FAIL" -eq 0 ] || exit 1
+
+          TAR=tar
+          command -v gtar >/dev/null 2>&1 && TAR=gtar
+
+          ARCHIVE="${STAGING}.tar.gz"
+          "$TAR" --sort=name \
+                 --mtime="@${SOURCE_DATE_EPOCH}" \
+                 --owner=0 --group=0 --numeric-owner \
+                 --format=gnu \
+                 -cf - "${STAGING}" \
+            | gzip -n -9 > "${ARCHIVE}"
+
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Generate SHA-256 checksum
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${{ env.ARCHIVE }}" > "${{ env.ARCHIVE }}.sha256"
+          else
+            shasum -a 256 "${{ env.ARCHIVE }}" > "${{ env.ARCHIVE }}.sha256"
+          fi
+          echo "::group::Checksum"
+          cat "${{ env.ARCHIVE }}.sha256"
+          echo "::endgroup::"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-path: ${{ env.ARCHIVE }}
+
+      - name: Generate SBOM
+        run: |
+          cargo install cargo-cyclonedx --locked
+          cargo cyclonedx --format json --output-file sbom-${{ matrix.target }}.json
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@36590ecaf038d6630c74f2da259095627d52ac11 # v4
+        with:
+          subject-path: ${{ env.ARCHIVE }}
+          sbom-path: sbom-${{ matrix.target }}.json
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+            sbom-${{ matrix.target }}.json
+
+  # ── 3. Docker image (ci-release target) ────────────────────────────────────
+
+  docker:
+    name: Push Docker image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+
+      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: meta
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          target: ci-release
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+          tags: |
+            ${{ env.GHCR_IMAGE }}:${{ github.ref_name }}
+            ${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.GHCR_IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.title=LatchGate
+            org.opencontainers.image.description=Execution security kernel for AI agents
+
+  # ── 3b. Egress proxy image ────────────────────────────────────────────────
+
+  egress-proxy:
+    name: Push egress proxy image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+
+      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: meta
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: deploy/squid
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.GHCR_IMAGE }}-egress:${{ github.ref_name }}
+            ${{ env.GHCR_IMAGE }}-egress:${{ steps.meta.outputs.version }}
+            ${{ env.GHCR_IMAGE }}-egress:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.title=LatchGate Egress Proxy
+            org.opencontainers.image.description=Defense-in-depth egress proxy with manifest-derived allowlist
+
+  # ── 4. GitHub Release ──────────────────────────────────────────────────────
+
+  release:
+    name: Create GitHub Release
+    needs: [build, docker, egress-proxy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: release-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Verify release artifacts
+        run: |
+          echo "::group::All release artifacts"
+          ls -lhR artifacts/
+          echo "::endgroup::"
+
+          TARBALL_COUNT=$(find artifacts -name '*.tar.gz' ! -name '*.sha256' | wc -l)
+          CHECKSUM_COUNT=$(find artifacts -name '*.sha256' | wc -l)
+          SBOM_COUNT=$(find artifacts -name 'sbom-*.json' | wc -l)
+
+          echo "Tarballs:  ${TARBALL_COUNT} (expected 4)"
+          echo "Checksums: ${CHECKSUM_COUNT} (expected 4)"
+          echo "SBOMs:     ${SBOM_COUNT} (expected 4)"
+
+          FAIL=0
+          [ "$TARBALL_COUNT"  -eq 4 ] || { echo "::error::Expected 4 tarballs, found ${TARBALL_COUNT}"; FAIL=1; }
+          [ "$CHECKSUM_COUNT" -eq 4 ] || { echo "::error::Expected 4 checksum files, found ${CHECKSUM_COUNT}"; FAIL=1; }
+          [ "$SBOM_COUNT"     -eq 4 ] || { echo "::error::Expected 4 SBOM files, found ${SBOM_COUNT}"; FAIL=1; }
+          [ "$FAIL" -eq 0 ] || exit 1
+
+      - name: Verify checksums
+        working-directory: artifacts
+        run: |
+          for checksum_file in *.sha256; do
+            echo "Verifying ${checksum_file}..."
+            sha256sum -c "$checksum_file"
+          done
+
+      - name: Create aggregate checksum file
+        working-directory: artifacts
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sha256sum *.tar.gz > "latchgate-v${VERSION}-checksums.sha256"
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          path: repo
+
+      - name: Install minisign
+        run: |
+          MINISIGN_VERSION=0.11
+          curl -fsSL "https://github.com/jedisct1/minisign/releases/download/${MINISIGN_VERSION}/minisign-${MINISIGN_VERSION}-linux.tar.gz" \
+            | tar xz --strip-components=2 -C /usr/local/bin minisign-linux/x86_64/minisign
+          minisign -v
+
+      - name: Sign release artifacts and install.sh
+        run: |
+          echo "${{ secrets.MINISIGN_KEY }}" > /tmp/minisign.key
+          trap 'rm -f /tmp/minisign.key' EXIT
+
+          for f in artifacts/*.tar.gz artifacts/*-checksums.sha256; do
+            echo "${{ secrets.MINISIGN_PASSWORD }}" \
+              | minisign -S -s /tmp/minisign.key -m "$f" -t "$(basename "$f") — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          done
+
+          cp repo/install.sh artifacts/install.sh
+          echo "${{ secrets.MINISIGN_PASSWORD }}" \
+            | minisign -S -s /tmp/minisign.key -m artifacts/install.sh \
+              -t "install.sh — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Create release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.tar.gz.minisig
+            artifacts/*.sha256
+            artifacts/*.sha256.minisig
+            artifacts/install.sh
+            artifacts/install.sh.minisig
+            artifacts/*.json
+
+  # ── 5. Publish SDKs ───────────────────────────────────────────────────────
+
+  publish-pypi:
+    name: Publish Python SDK to PyPI
+    needs: release
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Verify version matches tag
+        working-directory: sdk/python
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(python3 -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              print(tomllib.load(f)['project']['version'])
+          ")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) ≠ pyproject.toml version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Version ${TAG_VERSION} verified"
+
+      - name: Run tests
+        working-directory: sdk/python
+        run: |
+          python -m pip install --quiet -e .
+          python -m pip install --quiet pytest "pytest-asyncio>=0.23" "respx>=0.21"
+          pytest --tb=short -q
+
+      - name: Build sdist and wheel
+        working-directory: sdk/python
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        with:
+          packages-dir: sdk/python/dist/
+
+  publish-npm:
+    name: Publish TypeScript SDK to npm
+    needs: release
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify version matches tag
+        working-directory: sdk/typescript
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) ≠ package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Version ${TAG_VERSION} verified"
+
+      - name: Install and build
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run tests
+        working-directory: sdk/typescript
+        run: npm test
+
+      - name: Verify dist/ was produced
+        working-directory: sdk/typescript
+        run: |
+          if [ ! -f "dist/index.js" ] || [ ! -f "dist/index.d.ts" ]; then
+            echo "::error::TypeScript build did not produce expected dist/ outputs"
+            exit 1
+          fi
+
+      - name: Publish to npm
+        working-directory: sdk/typescript
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

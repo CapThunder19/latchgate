@@ -1,0 +1,109 @@
+# bitbucket_pr_create — create a Bitbucket pull request.
+#
+# High risk: creates PRs visible to repository collaborators. Requires approval.
+
+action_id: "bitbucket_pr_create"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.bitbucket.org/2.0/repositories/{{workspace}}/{{repo_slug}}/pullrequests"
+  headers:
+    Content-Type: "application/json"
+    Accept: "application/json"
+  body_template:
+    title: "{{title}}"
+    description: "{{description}}"
+    source:
+      branch:
+        name: "{{source_branch}}"
+    destination:
+      branch:
+        name: "{{destination_branch}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - workspace
+      - repo_slug
+      - title
+      - source_branch
+      - destination_branch
+    additionalProperties: false
+    properties:
+      workspace:
+        type: string
+        minLength: 1
+        maxLength: 128
+        description: "Bitbucket workspace slug."
+      repo_slug:
+        type: string
+        minLength: 1
+        maxLength: 128
+        description: "Repository slug."
+      title:
+        type: string
+        minLength: 1
+        maxLength: 256
+      description:
+        type: string
+        maxLength: 65536
+        default: ""
+      source_branch:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Branch containing changes."
+      destination_branch:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Branch to merge into."
+  response_schema:
+    type: object
+    required: [ok]
+    additionalProperties: false
+    properties:
+      ok: { type: boolean }
+      data:
+        type: object
+        properties:
+          id: { type: integer, description: "Pull request ID." }
+          links:
+            type: object
+            properties:
+              html:
+                type: object
+                properties:
+                  href: { type: string, description: "URL of the created PR." }
+  max_request_bytes: 65536
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.bitbucket.org"
+
+secrets:
+  - name: "BITBUCKET_TOKEN"
+    required: true
+
+risk_level: "high"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok", "data"]
+
+declared_side_effects:
+  - "http_write"

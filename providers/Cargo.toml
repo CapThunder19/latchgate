@@ -1,0 +1,53 @@
+# Providers workspace — compiled to wasm32-wasip2, intentionally separate
+# from the main workspace (different target architecture).
+#
+# Building: cargo build --workspace --target wasm32-wasip2 --release
+[workspace]
+members = [
+    "http_api",
+    "fs",
+]
+# Experimental providers — not included in v0.1. These will ship in
+# the later versions.
+#
+# To build locally for development:
+#   cargo build -p latchgate-provider-artifact_store --target wasm32-wasip2
+#
+# exclude keeps them parseable by cargo but out of `--workspace` builds.
+exclude = [
+    "artifact_store",
+    "database",
+    "email",
+    "queue",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+wit-bindgen = "0.36"
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+base64      = "0.22"
+
+# ── Release profile — reproducible WASM ───────────────────────────────────────
+#
+# Same source + same toolchain (rust 1.88, pinned in rust-toolchain.toml) =>
+# byte-identical .wasm modules. The provider_module_digest committed in
+# definitions/manifests/*.yaml is therefore stable, verifiable, and reviewable.
+#
+#   codegen-units = 1    single codegen unit — required for determinism
+#   lto           = true fat LTO — whole-program optimization, deterministic
+#   strip         = true strips symbols (and non-deterministic metadata)
+#   panic         = "abort" no unwind tables, smaller output
+#   opt-level     = "s"  optimize for size (typical for WASM hosts)
+
+[profile.release]
+codegen-units = 1
+lto           = true
+strip         = true
+panic         = "abort"
+opt-level     = "s"

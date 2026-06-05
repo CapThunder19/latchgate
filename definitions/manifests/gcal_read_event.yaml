@@ -1,0 +1,59 @@
+# gcal_read_event — read a single Google Calendar event by ID.
+#
+# Low risk: read-only.
+
+action_id: "gcal_read_event"
+tags: ["team", "research"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events/{{event_id}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      calendar_id:
+        type: string
+        minLength: 1
+        maxLength: 256
+        default: "primary"
+        description: "Calendar ID. Use 'primary' for the user's default calendar."
+      event_id:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Event ID to retrieve."
+    required:
+      - event_id
+    additionalProperties: false
+  max_request_bytes: 1024
+  max_response_bytes: 65536
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "www.googleapis.com"
+
+secrets:
+  - name: "GOOGLE_ACCESS_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

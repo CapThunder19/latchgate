@@ -1,0 +1,72 @@
+# github_pr_comment — comment on a GitHub pull request or issue.
+#
+# Medium risk: visible communication on PRs/issues.
+
+action_id: "github_pr_comment"
+tags: ["agent", "team", "coding"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.github.com/repos/{{owner}}/{{repo}}/issues/{{number}}/comments"
+  headers:
+    Accept: "application/vnd.github.v3+json"
+    Content-Type: "application/json"
+  body_template:
+    body: "{{body}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - owner
+      - repo
+      - number
+      - body
+    additionalProperties: false
+    properties:
+      owner:
+        type: string
+        minLength: 1
+        maxLength: 39
+      repo:
+        type: string
+        minLength: 1
+        maxLength: 100
+      number:
+        type: string
+        minLength: 1
+        maxLength: 10
+        description: "Issue or PR number."
+      body:
+        type: string
+        minLength: 1
+        maxLength: 65536
+        description: "Comment body (Markdown)."
+  max_request_bytes: 65536
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.github.com"
+
+secrets:
+  - name: "GITHUB_TOKEN"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

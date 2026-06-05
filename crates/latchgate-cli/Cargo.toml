@@ -1,0 +1,49 @@
+[package]
+name = "latchgate-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "CLI commands for LatchGate operator and developer workflows"
+
+[features]
+## Forward unsafe dev mode gate to latchgate-core. Never enable in release builds.
+unsafe-dev = ["latchgate-config/unsafe-dev"]
+
+[dependencies]
+latchgate-core      = { workspace = true }
+rustix              = { workspace = true }
+latchgate-config    = { workspace = true }
+latchgate-client = { workspace = true }
+latchgate-embed     = { workspace = true }
+latchgate-auth      = { workspace = true }
+latchgate-registry  = { workspace = true }
+latchgate-ledger    = { workspace = true }
+latchgate-webhooks  = { workspace = true }
+latchgate-sandbox   = { workspace = true }
+latchgate-tui       = { workspace = true }
+rusqlite            = { workspace = true }
+
+clap       = { workspace = true }
+clap_complete = { workspace = true }
+tokio      = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+tracing    = { workspace = true }
+chrono     = { workspace = true }
+toml       = { workspace = true }
+
+# TOML editing (comment-preserving AST for `config set`)
+toml_edit = { workspace = true }
+
+reqwest        = { workspace = true }
+hex            = { workspace = true }
+rand           = { workspace = true }
+p256           = { workspace = true }
+tempfile       = { workspace = true }
+
+[dev-dependencies]
+latchgate-config = { workspace = true, features = ["test-support"] }
+latchgate-client = { workspace = true }
+[lints]
+workspace = true

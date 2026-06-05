@@ -1,0 +1,131 @@
+# LatchGate Docker Compose — single file, multiple profiles.
+#
+# Profiles:
+#   docker compose up                          # redis only (embedded OPA)
+#   docker compose --profile opa up            # redis + external OPA
+#   docker compose --profile dev up            # + opa + squid + prometheus
+#
+# Ports (127.0.0.1 only):
+#   6379  Redis
+#   8181  OPA
+#   3128  Squid (egress proxy)          [dev]
+#   9090  Prometheus                    [dev]
+
+name: latchgate
+
+x-hardened: &hardened
+  security_opt:
+    - "no-new-privileges:true"
+  cap_drop:
+    - ALL
+  restart: unless-stopped
+
+services:
+  redis:
+    <<: *hardened
+    image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    user: redis
+    read_only: true
+    ports:
+      - "127.0.0.1:6379:6379"
+    tmpfs:
+      - /tmp:noexec,nosuid,size=16M
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --requirepass "${LATCHGATE_REDIS_PASSWORD:?Set LATCHGATE_REDIS_PASSWORD}"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${LATCHGATE_REDIS_PASSWORD:?}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  opa:
+    <<: *hardened
+    image: openpolicyagent/opa:1.17.0@sha256:3c6e9e4d433b6e94df424c3385134312a95042aa991cdfc8e01944115675fb9d
+    read_only: true
+    profiles: ["opa", "dev"]
+    ports:
+      - "127.0.0.1:8181:8181"
+    tmpfs:
+      - /tmp:noexec,nosuid,size=16M
+    command:
+      - "run"
+      - "--server"
+      - "--addr=0.0.0.0:8181"
+      - "/policies"
+    volumes:
+      - ./definitions/policies/opa:/policies:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "/opa", "version"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  squid:
+    <<: *hardened
+    profiles: ["dev"]
+    build:
+      context: ./deploy/squid
+      dockerfile: Dockerfile
+    read_only: true
+    ports:
+      - "127.0.0.1:3128:3128"
+    volumes:
+      - ./deploy/squid/squid.conf:/etc/squid/squid.conf:ro
+      - egress-allowlist:/var/run/latchgate/egress
+    tmpfs:
+      - /tmp:nosuid,size=16M
+      - /run/squid:nosuid,size=4M
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3128"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  prometheus:
+    <<: *hardened
+    profiles: ["dev"]
+    image: prom/prometheus:v3.12.0@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac
+    read_only: true
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prometheus.dev.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+      - "--storage.tsdb.retention.size=256MB"
+      - "--log.level=warn"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  prometheus-data:
+  egress-allowlist:

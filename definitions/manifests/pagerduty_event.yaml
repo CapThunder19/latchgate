@@ -1,0 +1,70 @@
+# pagerduty_event — trigger, acknowledge, or resolve PagerDuty incidents.
+#
+# Medium risk: can create alerts. No approval required.
+
+action_id: "pagerduty_event"
+version: "1.0.0"
+tags: ["devops"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://events.pagerduty.com/v2/enqueue"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    routing_key: "{{routing_key}}"
+    event_action: "{{event_action}}"
+    payload: "{{payload}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      routing_key:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: "PagerDuty integration/routing key."
+      event_action:
+        type: string
+        enum:
+          - trigger
+          - acknowledge
+          - resolve
+        description: "Event action type."
+      payload:
+        type: string
+        maxLength: 65536
+        description: "Event payload (JSON string with summary, severity, source)."
+    required:
+      - routing_key
+      - event_action
+      - payload
+    additionalProperties: false
+  max_request_bytes: 65536
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "events.pagerduty.com"
+
+secrets:
+  - name: "PAGERDUTY_ROUTING_KEY"
+    required: false
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

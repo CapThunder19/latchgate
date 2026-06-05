@@ -1,0 +1,48 @@
+[package]
+name = "latchgate-kernel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Enforcement pipeline orchestrator — the security kernel for LatchGate"
+
+[dependencies]
+latchgate-core      = { workspace = true }
+latchgate-crypto    = { workspace = true }
+latchgate-config    = { workspace = true }
+latchgate-auth      = { workspace = true }
+latchgate-registry  = { workspace = true }
+latchgate-policy    = { workspace = true }
+latchgate-state     = { workspace = true }
+latchgate-providers = { workspace = true }
+latchgate-ledger    = { workspace = true }
+arc-swap            = "1"
+serde               = { workspace = true }
+serde_json          = { workspace = true }
+thiserror           = { workspace = true }
+tracing             = { workspace = true }
+zeroize             = { workspace = true }
+tokio               = { workspace = true }
+axum                = { workspace = true, optional = true }
+
+chrono              = { workspace = true }
+url                 = { workspace = true }
+dashmap             = { workspace = true }
+base64ct            = { workspace = true }
+
+[features]
+# HTTP response mapping (IntoResponse for PipelineError). Enabled by
+# latchgate-api; the kernel compiles without axum when used standalone.
+http = ["dep:axum"]
+# Enable in tests only. Exposes fault-injection hooks for regression
+# regression tests that verify invariants (such as budget rollback) whose
+# trigger paths cannot be reached through ordinary configuration.
+test-hooks = []
+# Expose test_support module for downstream crates (latchgate-api) that
+# need to construct AppState in their own test suites. Guards test-only
+# infrastructure behind an explicit opt-in so it never leaks into release.
+test-support = []
+
+[dev-dependencies]
+[lints]
+workspace = true

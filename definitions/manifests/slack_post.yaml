@@ -1,0 +1,72 @@
+# slack_post — post a message to Slack via webhook.
+#
+# Medium risk: sends a message to an external Slack workspace.
+# Does not require approval (medium-risk webhook is common in automations).
+
+action_id: "slack_post"
+tags: ["team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "{{webhook_url}}"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    text: "{{message}}"
+    channel: "{{channel}}"
+    username: "{{username}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      webhook_url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "Slack incoming webhook URL."
+      message:
+        type: string
+        minLength: 1
+        maxLength: 40000
+        description: "Message text."
+      channel:
+        type: string
+        maxLength: 80
+        description: "Channel override (optional, webhook default used if omitted)."
+      username:
+        type: string
+        maxLength: 80
+        default: "LatchGate"
+        description: "Display name for the bot."
+    required:
+      - webhook_url
+      - message
+    additionalProperties: false
+  max_request_bytes: 65536
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "hooks.slack.com"
+
+secrets: []
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

@@ -1,0 +1,8 @@
+[preset]
+name = "data"
+description = "Storage, monitoring, and financial integrations — S3, Datadog, Grafana, Stripe, webhooks. Write actions gated."
+
+manifests = "tagged:data-pipeline"
+
+[preset.policy]
+wildcard_grant = "risk_below:high"

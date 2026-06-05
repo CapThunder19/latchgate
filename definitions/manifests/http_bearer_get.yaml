@@ -1,0 +1,64 @@
+# http_bearer_get — authenticated HTTP GET with bearer token injection.
+#
+# Low risk: read-only. Demonstrates credential injection by the host layer
+# (the WASM sandbox never sees the token).
+#
+# Risk rationale: read-only, auth handled by host layer, no PII exposure.
+#
+# Generic action — ships with empty allowed_domains.
+# Operators must configure domains for their environment.
+# See definitions/manifests/_examples/http_bearer_get.yaml for a demo configuration.
+
+action_id: "http_bearer_get"
+tags:
+  - "agent"
+  - "team"
+  - "research"
+  - "data-pipeline"
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "{{url}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "Authenticated API endpoint."
+    required:
+      - url
+    additionalProperties: false
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains: []
+
+secrets:
+  - name: "API_BEARER_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

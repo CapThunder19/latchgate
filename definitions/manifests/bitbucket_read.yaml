@@ -1,0 +1,53 @@
+# bitbucket_read — read Bitbucket repositories and pull requests.
+#
+# Low risk: read-only API access.
+
+action_id: "bitbucket_read"
+tags: ["agent", "team", "research"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://api.bitbucket.org/2.0/{{endpoint}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - endpoint
+    additionalProperties: false
+    properties:
+      endpoint:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "Bitbucket API path, e.g. repositories/workspace/repo, pullrequests"
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.bitbucket.org"
+
+secrets:
+  - name: "BITBUCKET_TOKEN"
+    required: false
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

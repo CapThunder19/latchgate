@@ -1,0 +1,71 @@
+# todoist_update — update an existing Todoist task.
+#
+# Medium risk: modifies task content, due dates, priority. Budget-controlled.
+
+action_id: "todoist_update"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.todoist.com/rest/v2/tasks/{{task_id}}"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    content: "{{content}}"
+    due_string: "{{due_string}}"
+    priority: "{{priority}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      task_id:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: "Todoist task ID."
+      content:
+        type: string
+        maxLength: 4096
+        description: "Updated task content."
+      due_string:
+        type: string
+        maxLength: 256
+        default: ""
+        description: "Human-readable due date (e.g. 'tomorrow at 3pm')."
+      priority:
+        type: integer
+        minimum: 1
+        maximum: 4
+        description: "Priority level (1 = normal, 4 = urgent)."
+    required:
+      - task_id
+    additionalProperties: false
+  max_request_bytes: 8192
+  max_response_bytes: 8192
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.todoist.com"
+
+secrets:
+  - name: "TODOIST_API_TOKEN"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

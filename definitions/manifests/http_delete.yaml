@@ -1,0 +1,71 @@
+# http_delete — generic HTTP DELETE action for resource removal.
+#
+# High risk: permanently removes external resources. Requires approval.
+#
+# Risk rationale: destructive, hard to undo, affects external state.
+#
+# Generic action — ships with empty allowed_domains.
+# Operators must configure domains for their environment.
+# See definitions/manifests/_examples/http_delete.yaml for a demo configuration.
+
+action_id: "http_delete"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: DELETE
+  url_template: "{{url}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "API endpoint to DELETE."
+    required:
+      - url
+    additionalProperties: false
+  response_schema:
+    type: object
+    required: [ok]
+    additionalProperties: false
+    properties:
+      ok: { type: boolean }
+      data:
+        type: object
+        properties:
+          status: { type: integer, description: "HTTP status code from the target." }
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains: []
+
+secrets:
+  - name: "API_TOKEN"
+    required: false
+
+risk_level: "high"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok"]
+
+declared_side_effects:
+  - "http_write"

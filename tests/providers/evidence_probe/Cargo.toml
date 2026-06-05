@@ -1,0 +1,18 @@
+[package]
+name        = "latchgate-fixture-evidence-probe"
+version.workspace = true
+edition.workspace = true
+description = "Deterministic WASM fixture: returns a canned success payload — used to exercise the post-dispatch evidence-finalization branch in integration tests."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = { workspace = true }
+
+[package.metadata.component]
+package = "latchgate:provider"
+
+[package.metadata.component.target]
+world = "provider"
+path  = "../../../providers/wit"

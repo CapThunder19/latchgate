@@ -1,0 +1,318 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUSTFLAGS: "-Dwarnings"
+  RUST_TOOLCHAIN: "1.88"
+
+jobs:
+  # ── Lint, test & audit ──────────────────────────────────
+  check:
+    name: Check, lint, test & audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          shared-key: "ci-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h /
+
+      # Fast: pure text check, no compilation.
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      # Second-fastest: check profile, fails fast on lint errors before
+      # the expensive test compilation.
+      - name: Clippy
+        run: cargo clippy --locked --workspace --lib --bins -- -D warnings
+
+      # The release binary targets musl (static linking). musl defines
+      # ioctl(2) request as c_int, not c_ulong — catch type mismatches
+      # that only manifest on the musl target before they reach the
+      # release build.
+      - name: Clippy (musl)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools >/dev/null
+          rustup target add x86_64-unknown-linux-musl
+          cargo clippy --locked --workspace --lib --bins \
+            --target x86_64-unknown-linux-musl -- -D warnings
+
+      # Pre-build every test target (--no-run). Both "Unit tests" and
+      # "Standalone tests" then execute pre-built binaries — no second
+      # compilation pass.
+      - name: Compile test targets
+        run: cargo test --locked --workspace --no-run --no-fail-fast
+
+      - name: Unit tests
+        run: cargo test --locked --workspace --lib --bins --no-fail-fast
+
+      - name: Standalone tests
+        run: cargo test --locked -p latchgate-tests --test standalone --no-fail-fast -- --skip wasm_conformance
+
+      - name: Verify test-hooks not in release build
+        run: |
+          for crate in latchgate-api latchgate-kernel; do
+            if cargo tree --locked -p "$crate" -f "{p} {f}" \
+                 | grep "latchgate-ledger" \
+                 | grep -q "test-hooks"; then
+              echo "::error::test-hooks feature enabled in $crate release build"
+              exit 1
+            fi
+          done
+
+      - name: cargo deny
+        uses: EmbarkStudios/cargo-deny-action@8f84122a46a358a27cb0625d85ad60ab436a1b87 # v2
+
+      - name: cargo audit
+        uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24 # v1
+
+      # Reject any dependency published in the last 7 days. Protects
+      # against supply-chain attacks that push malicious crate versions
+      # and hope for fast adoption before detection.
+      - name: Cargo dependency freshness check
+        run: |
+          set -euo pipefail
+          MIN_AGE_DAYS=7
+          NOW=$(date +%s)
+          FAIL_FILE=$(mktemp)
+          echo 0 > "$FAIL_FILE"
+
+          # Extract name+version pairs from Cargo.lock
+          while read -r name version; do
+
+            # Skip path/git deps (workspace crates)
+            grep -qP "^source = \"(path|git)" <<< \
+              "$(awk -v n="$name" -v v="$version" '
+                /^\[\[package\]\]/{found=0}
+                /^name = "'"$name"'"/{n_ok=1}
+                /^version = "'"$version"'"/{v_ok=1}
+                /^source = /{if(n_ok&&v_ok) print; n_ok=0; v_ok=0}
+              ' Cargo.lock 2>/dev/null)" 2>/dev/null && continue || true
+
+            # Query crates.io for publish date of this exact version
+            PUBLISHED=$(curl -sf "https://crates.io/api/v1/crates/${name}/${version}" \
+              -H "User-Agent: latchgate-ci (supply-chain-check)" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['version']['created_at'])" 2>/dev/null) || continue
+
+            PUB_EPOCH=$(date -d "$PUBLISHED" +%s 2>/dev/null) || continue
+            AGE_DAYS=$(( (NOW - PUB_EPOCH) / 86400 ))
+
+            if [ "$AGE_DAYS" -lt "$MIN_AGE_DAYS" ]; then
+              echo "::error::${name}@${version} published ${AGE_DAYS}d ago (minimum: ${MIN_AGE_DAYS}d)"
+              echo 1 > "$FAIL_FILE"
+            fi
+          done < <(awk '/^name = /{name=$3} /^version = /{print name, $3}' Cargo.lock \
+            | tr -d '"' | sort -u)
+
+          FAIL=$(cat "$FAIL_FILE")
+          rm -f "$FAIL_FILE"
+          [ "$FAIL" -eq 0 ] || {
+            echo ""
+            echo "Crate(s) above were published less than ${MIN_AGE_DAYS} days ago."
+            echo "Verify the release is legitimate before merging."
+            exit 1
+          }
+
+      - name: Verify image digest pins
+        run: |
+          FAIL=0
+          for file in Dockerfile deploy/squid/Dockerfile; do
+            if grep -P '^FROM\s+\S+' "$file" | grep -v '@sha256:' | grep -v ' AS '; then
+              echo "::error file=$file::FROM without digest pin"
+              FAIL=1
+            fi
+          done
+          for file in docker-compose.yml; do
+            if grep -P '^\s+image:\s+' "$file" | grep -v '@sha256:'; then
+              echo "::error file=$file::image without digest pin"
+              FAIL=1
+            fi
+          done
+          # Verify Makefile REHASH_IMAGE is pinned.
+          if grep -P '^REHASH_IMAGE\s+:=' Makefile | grep -v '@sha256:'; then
+            echo "::error file=Makefile::REHASH_IMAGE without digest pin"
+            FAIL=1
+          fi
+          # Verify release.yml inline docker run images are pinned.
+          if grep -P '^\s+rust:' .github/workflows/release.yml | grep -v '@sha256:'; then
+            echo "::error file=.github/workflows/release.yml::inline docker image without digest pin"
+            FAIL=1
+          fi
+          [ "$FAIL" -eq 0 ] || { echo "Run: make pin-digests"; exit 1; }
+
+      - name: Verify Dockerfile crate list matches workspace
+        run: |
+          DOCKER_CRATES=$(grep 'COPY crates/' Dockerfile \
+            | sed 's|.*COPY crates/||;s|/Cargo.toml.*||' | sort)
+          WORKSPACE_CRATES=$(sed -n '/^\[workspace\]/,/^\[/{ /members/,/\]/p }' Cargo.toml \
+            | grep '"crates/' | sed 's|.*"crates/||;s|".*||' | sort)
+          if [ "$DOCKER_CRATES" != "$WORKSPACE_CRATES" ]; then
+            echo "::error::Dockerfile dependency-cache crate list diverged from Cargo.toml workspace members"
+            diff <(echo "$DOCKER_CRATES") <(echo "$WORKSPACE_CRATES") || true
+            exit 1
+          fi
+
+  # ── SDK tests ─────────────────────────────────────────────
+  sdk:
+    name: SDK tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+
+      - name: Python SDK
+        working-directory: sdk/python
+        run: |
+          python -m pip install --quiet -e .
+          python -m pip install --quiet pytest "pytest-asyncio>=0.23" "respx>=0.21"
+          pytest --tb=short -q
+
+      - name: TypeScript SDK
+        working-directory: sdk/typescript
+        run: |
+          npm ci --silent
+          npm run build
+          npm test
+
+  # ── TypeScript SDK supply-chain scan ───────────────────────
+  sdk-typescript-security:
+    name: TypeScript SDK dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+
+      - uses: OWASP/cve-lite-cli@f2866276b1aaea796ce39550fe98b79a113e4930 # v1
+        with:
+          path: sdk/typescript
+          verbose: "true"
+          fail-on: high
+
+      # Reject any direct dependency published in the last 7 days.
+      - name: npm dependency freshness check
+        working-directory: sdk/typescript
+        run: |
+          set -euo pipefail
+          npm ci --silent
+          MIN_AGE_DAYS=7
+          NOW=$(date +%s)
+          FAIL_FILE=$(mktemp)
+          echo 0 > "$FAIL_FILE"
+
+          while read -r spec; do
+            name="${spec%@*}"
+            version="${spec##*@}"
+
+            PUBLISHED=$(npm view "${name}@${version}" time --json 2>/dev/null \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('${version}',''))" 2>/dev/null) || continue
+            [ -n "$PUBLISHED" ] || continue
+
+            PUB_EPOCH=$(date -d "$PUBLISHED" +%s 2>/dev/null) || continue
+            AGE_DAYS=$(( (NOW - PUB_EPOCH) / 86400 ))
+
+            if [ "$AGE_DAYS" -lt "$MIN_AGE_DAYS" ]; then
+              echo "::error::${name}@${version} published ${AGE_DAYS}d ago (minimum: ${MIN_AGE_DAYS}d)"
+              echo 1 > "$FAIL_FILE"
+            fi
+          done < <(npm ls --json --all 2>/dev/null \
+            | python3 -c "
+          import sys, json
+          def walk(deps, depth=0):
+              if not deps: return
+              for name, info in deps.items():
+                  v = info.get('version','')
+                  if v: print(f'{name}@{v}')
+                  walk(info.get('dependencies',{}), depth+1)
+          tree = json.load(sys.stdin)
+          walk(tree.get('dependencies',{}))
+          " | sort -u)
+
+          FAIL=$(cat "$FAIL_FILE")
+          rm -f "$FAIL_FILE"
+          [ "$FAIL" -eq 0 ] || {
+            echo "npm package(s) above were published < ${MIN_AGE_DAYS} days ago."
+            exit 1
+          }
+
+  # ── Python SDK supply-chain scan ───────────────────────────
+  sdk-python-security:
+    name: Python SDK dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+
+      - name: Audit Python SDK dependencies
+        working-directory: sdk/python
+        run: |
+          uv export --no-hashes --frozen -o /tmp/_reqs.txt
+          uvx pip-audit -r /tmp/_reqs.txt
+
+      # Reject any dependency published in the last 7 days.
+      - name: PyPI dependency freshness check
+        working-directory: sdk/python
+        run: |
+          set -euo pipefail
+          uv export --no-hashes --frozen -o /tmp/_reqs.txt
+          MIN_AGE_DAYS=7
+          NOW=$(date +%s)
+          FAIL_FILE=$(mktemp)
+          echo 0 > "$FAIL_FILE"
+
+          while IFS='==' read -r name _ version; do
+            [ -n "$name" ] && [ -n "$version" ] || continue
+
+            PUBLISHED=$(curl -sf "https://pypi.org/pypi/${name}/${version}/json" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['urls'][0]['upload_time_iso_8601'])" 2>/dev/null) || continue
+
+            PUB_EPOCH=$(date -d "$PUBLISHED" +%s 2>/dev/null) || continue
+            AGE_DAYS=$(( (NOW - PUB_EPOCH) / 86400 ))
+
+            if [ "$AGE_DAYS" -lt "$MIN_AGE_DAYS" ]; then
+              echo "::error::${name}==${version} published ${AGE_DAYS}d ago (minimum: ${MIN_AGE_DAYS}d)"
+              echo 1 > "$FAIL_FILE"
+            fi
+          done < <(grep -oP '^[a-zA-Z0-9_-]+==\S+' /tmp/_reqs.txt)
+
+          FAIL=$(cat "$FAIL_FILE")
+          rm -f "$FAIL_FILE"
+          [ "$FAIL" -eq 0 ] || {
+            echo "PyPI package(s) above were published < ${MIN_AGE_DAYS} days ago."
+            exit 1
+          }

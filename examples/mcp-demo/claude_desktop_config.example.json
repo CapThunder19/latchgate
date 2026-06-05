@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "latchgate": {
+      "command": "/absolute/path/to/target/release/latchgate-mcp",
+      "args": ["--gate-url", "http://localhost:3000"],
+      "env": {
+        "LATCHGATE_AGENT_ID": "claude-desktop",
+        "RUST_LOG": "warn"
+      }
+    }
+  }
+}

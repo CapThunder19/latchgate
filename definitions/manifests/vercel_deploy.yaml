@@ -1,0 +1,83 @@
+# vercel_deploy — trigger a deployment on Vercel.
+#
+# High risk: pushes code to production. Requires approval.
+
+action_id: "vercel_deploy"
+version: "1.0.0"
+tags: ["devops"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.vercel.com/v13/deployments"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    name: "{{name}}"
+    target: "{{target}}"
+    gitSource: "{{git_source}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      name:
+        type: string
+        minLength: 1
+        maxLength: 100
+        description: "Project name."
+      target:
+        type: string
+        enum:
+          - production
+          - preview
+        default: "preview"
+        description: "Deployment target environment."
+      git_source:
+        type: string
+        maxLength: 4096
+        description: "Git source object (JSON string with type, repo, ref)."
+    required:
+      - name
+      - git_source
+    additionalProperties: false
+  response_schema:
+    type: object
+    required: [ok]
+    additionalProperties: false
+    properties:
+      ok: { type: boolean }
+      data:
+        type: object
+        properties:
+          id: { type: string, description: "Vercel deployment ID." }
+          url: { type: string, description: "Deployment URL." }
+          readyState: { type: string, description: "Deployment state (QUEUED, BUILDING, READY, ERROR)." }
+  max_request_bytes: 8192
+  max_response_bytes: 65536
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.vercel.com"
+
+secrets:
+  - name: "VERCEL_TOKEN"
+    required: true
+
+risk_level: "high"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok", "data"]
+
+declared_side_effects:
+  - "http_write"

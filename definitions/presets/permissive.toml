@@ -1,0 +1,11 @@
+[preset]
+name = "permissive"
+description = "All actions auto-granted to every authenticated principal. Development and demos only — never deploy."
+
+# WARNING: grants every action to every authenticated principal.
+# init refuses to apply this preset outside dev_mode.
+manifests = "all"
+
+[preset.policy]
+# Requires dev_mode — init refuses to apply outside dev_mode.
+wildcard_grant = "all"

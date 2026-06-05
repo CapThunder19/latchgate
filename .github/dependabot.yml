@@ -1,0 +1,96 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps"
+    groups:
+      rust-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # wasmtime: pinned to 36.x LTS (supported until Aug 2027).
+      # Upgrade to next LTS (48.x) when released ~Aug 2026.
+      - dependency-name: "wasmtime"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "wasmtime-wasi"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # rand: pinned to 0.8 due to rand_core 0.6/0.9 incompatibility
+      # with ed25519-dalek and p256. Upgrade all three together when
+      # ed25519-dalek supports rand_core 0.9.
+      - dependency-name: "rand"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # ed25519-dalek / p256: held until rand_core 0.9 ecosystem is ready.
+      # Upgrading these independently of rand would break trait compat.
+      - dependency-name: "ed25519-dalek"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "p256"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: npm
+    directory: /sdk/typescript
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps(sdk-ts)"
+    groups:
+      typescript-sdk-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directory: /sdk/python
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps(sdk-py)"
+    groups:
+      python-sdk-minor-patch:
+        update-types: [minor, patch]
+
+  # SECURITY: pin Docker base images to immutable SHA256 digests.
+  # Dependabot auto-opens PRs when upstream publishes new digests
+  # (security patches, rebuilds). Covers Dockerfile, Dockerfile.runtime,
+  # deploy/squid/Dockerfile, and docker-compose.yml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(docker)"
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(docker)"
+
+  - package-ecosystem: docker
+    directory: /deploy/squid
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "deps(docker)"

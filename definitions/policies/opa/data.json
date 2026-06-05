@@ -1,0 +1,49 @@
+{
+  "_WARNING": "DEV-ONLY — DO NOT USE IN PRODUCTION. See data.prod.example.json for a production-safe starting point.",
+  "policy_version": "m0-dev-001",
+  "acl": {
+    "*": {
+      "allowed_actions": [
+        "http_fetch", "http_post", "http_delete",
+        "github_read", "github_create_issue",
+        "slack_post", "webhook_notify",
+        "http_patch", "http_bearer_get", "http_sensitive_read",
+        "linear_api", "jira_api", "sendgrid_send",
+        "notion_api", "s3_read", "s3_write", "stripe_read", "pagerduty_event",
+        "evidence_probe", "evidence_probe_approval"
+      ],
+      "allowed_sinks": ["http_read", "http_write", "http_delete"]
+    },
+    "agent:test-agent": {
+      "allowed_actions": [
+        "http_fetch", "http_post", "http_delete",
+        "github_read", "github_create_issue", "github_delete",
+        "slack_post", "webhook_notify",
+        "http_patch", "http_bearer_get", "http_sensitive_read",
+        "linear_api", "jira_api", "sendgrid_send",
+        "notion_api", "s3_read", "s3_write", "stripe_read", "pagerduty_event"
+      ],
+      "allowed_sinks": ["http_read", "http_write", "http_delete"]
+    },
+    "agent:restricted": {
+      "allowed_actions": ["http_fetch", "github_read", "http_bearer_get"],
+      "allowed_sinks": ["http_read"]
+    },
+    "agent:db-agent": {
+      "allowed_actions": ["http_fetch", "github_read"],
+      "allowed_sinks": ["http_read"]
+    },
+    "agent:inheriting": {
+      "allowed_actions": ["github_delete"],
+      "allowed_sinks": ["http_read"],
+      "inherits_wildcard": true
+    },
+    "agent:empty-acl": {
+      "allowed_actions": [],
+      "allowed_sinks": []
+    }
+  },
+  "latchgate": {
+    "allowlist": {}
+  }
+}

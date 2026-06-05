@@ -1,0 +1,71 @@
+# webhook_notify — generic outbound webhook notification.
+#
+# Medium risk: fires a POST to a caller-specified URL with event data.
+# Arbitrary outbound HTTP to operator-configured endpoints.
+#
+# Risk rationale: write to one external endpoint with auth, arbitrary URL.
+#
+# Generic action — ships with empty allowed_domains.
+# Operators must configure domains for their environment.
+# See manifests/_examples/webhook_notify.yaml for a demo configuration.
+
+action_id: "webhook_notify"
+tags: ["data-pipeline"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "{{url}}"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    event: "{{event}}"
+    payload: "{{payload}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "Webhook endpoint URL."
+      event:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Event name, e.g. build.completed"
+      payload:
+        type: string
+        maxLength: 65536
+        description: "Event payload (JSON string)."
+    required:
+      - url
+      - event
+    additionalProperties: false
+  max_request_bytes: 65536
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains: []
+
+secrets: []
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

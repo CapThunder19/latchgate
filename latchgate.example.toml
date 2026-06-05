@@ -1,0 +1,359 @@
+# LatchGate example configuration.
+# Copy to latchgate.toml and adjust for your environment.
+#
+# PRODUCTION MANDATORY FIELDS:
+#   - identity.provider (must not be "none")
+#   - operator_credentials (with dpop_jkt on every credential)
+#   - receipt_signing_key_path
+#   - grant_signing_key_path
+#   - receipt_keys_jwks_path
+#   - response_schema_enforcement = "deny" (default)
+#
+# Dev mode (LATCHGATE_DEV_MODE=true) bypasses all startup checks.
+
+# --- Sandbox ---
+[sandbox]
+# strict (default, recommended for CI/production): requires seccomp + no-new-privileges.
+# AppArmor or SELinux required on Linux. Fails closed on missing capabilities.
+# degraded_ok: for dev hosts lacking AppArmor/SELinux. Records sandbox_degraded=true in audit.
+mode = "strict"
+
+# Enforce minimum hardening for action containers regardless of sandbox mode.
+strict_for_actions = true
+
+# --- Agent Process Sandbox (Linux only) ---
+# Containment for the agent process itself. Activated via `latchgate sandbox`.
+# The agent runs in Linux user/network/mount/PID namespaces with only two
+# paths to the outside world: the gate UDS and an HTTPS proxy for LLM APIs.
+#
+# [sandbox.agent]
+# workspace = "./my-project"                  # Host dir mounted as /workspace (RW). Default: CWD.
+# allow_hosts = [                             # Proxy allowlist — HTTPS only, port 443.
+#     "api.anthropic.com",
+#     "api.openai.com",
+#     "generativelanguage.googleapis.com",
+# ]
+# ro_mounts = ["/opt/node-22"]               # Extra read-only bind mounts.
+# pass_env = ["TERM", "LANG"]                # Env vars to pass through.
+# gate_socket = "/run/latchgate/gate.sock"    # Gate UDS path.
+#
+# # Credential routes — API keys injected by the proxy, never inside the sandbox.
+# # The agent sees only <ROUTE>_BASE_URL + LATCHGATE_PROXY_TOKEN.
+# [sandbox.agent.credentials.anthropic]
+# upstream = "https://api.anthropic.com"
+# header = "x-api-key"
+# format = "{}"
+# key_source = "env:ANTHROPIC_API_KEY"
+#
+# [sandbox.agent.credentials.openai]
+# upstream = "https://api.openai.com/v1"
+# header = "Authorization"
+# format = "Bearer {}"
+# key_source = "env:OPENAI_API_KEY"
+#
+# User-defined credential routes — sandbox any BYO-key agent without a
+# built-in profile. One route per provider; the proxy injects the header.
+#
+# [sandbox.agent.credentials.my_provider]
+# upstream = "https://api.my-provider.com/v1"
+# header = "Authorization"
+# format = "Bearer {}"
+# key_source = "env:MY_PROVIDER_API_KEY"
+#
+# If a profile declares credential routes and none resolve (every env var
+# is unset), the sandbox refuses to launch. Set at least one provider key
+# or remove the credential section to run without injection.
+#
+# NOTE: Subscription/OAuth tokens (e.g. ~/.claude/.credentials.json) are
+# not supported in-sandbox. Use a BYO API key.
+
+# --- Transport ---
+# Primary transport: Unix Domain Socket (default, no TCP exposure).
+# Default: $XDG_RUNTIME_DIR/latchgate/gate.sock (or /tmp/latchgate-<uid>/gate.sock).
+# Uncomment to override:
+# listen_uds_path = "/run/user/1000/latchgate/gate.sock"
+
+# Admin transport (approvals, audit, receipts, revoke, metrics).
+# Separate from the client socket — agent processes cannot reach admin APIs.
+# Default: $XDG_RUNTIME_DIR/latchgate/gate-admin.sock (or /tmp/latchgate-<uid>/gate-admin.sock).
+# Uncomment to override:
+# listen_admin_uds_path = "/run/user/1000/latchgate/gate-admin.sock"
+
+# Optional TCP listener. Requires unsafe_expose_http = true.
+# SECURITY: only enable for local development. Not for production.
+# listen_http_addr = "127.0.0.1:3000"
+# listen_admin_http_addr = "127.0.0.1:3001"
+# unsafe_expose_http = false
+
+# --- Admin mTLS (managed mode) ---
+# When all three fields are set, the admin TCP listener uses mutual TLS
+# and does NOT require unsafe_expose_http = true.
+# In managed deployments these are typically set via env vars
+# (LATCHGATE_ADMIN_TLS_CERT, LATCHGATE_ADMIN_TLS_KEY, LATCHGATE_ADMIN_TLS_CA).
+#
+# SECURITY: mTLS ensures both sides verify certificates signed by the same CA.
+# Clients without a valid cert are rejected at the TLS handshake.
+# admin_tls_cert = "/certs/server.crt"
+# admin_tls_key = "/certs/server.key"
+# admin_tls_ca = "/certs/ca.crt"
+
+# --- Budget guidance ---
+# Budgets are set per-session in the Lease JWT (via the SDK's `max_calls`
+# parameter). They limit the total number of action calls an agent can
+# make within a single session before the budget is exhausted and the
+# OPA policy denies further calls.
+#
+# Reasonable defaults:
+#   Interactive coding agent:     50–200 calls/session
+#   Autonomous background agent:  20–50  calls/session
+#   CI/CD pipeline agent:         10–30  calls/session (scoped to one job)
+#
+# Start conservative. Budget exhaustion is a soft denial — the agent can
+# request a new lease. Setting budgets too high defeats the guardrail.
+
+# --- Dependencies ---
+# redis_url = "redis://127.0.0.1:6379"
+# redis_key_prefix = "latchgate:jti:"   # Platform overrides per tenant
+# opa_url   = "http://127.0.0.1:8181"
+
+# --- Egress proxy (defense-in-depth) ---
+# Forward proxy for outbound HTTP from WASM providers. Enforces a domain
+# allowlist independently of the kernel's validate_sink() check.
+# SECURITY: strongly recommended in production.
+# egress_proxy_url = "http://squid:3128"
+
+# --- Egress runtime narrowing ---
+# When set, the effective allowlist per action = manifest_domains ∩ this list.
+# Can only REMOVE domains from the manifest set, never add.
+# Use to restrict a deployment to a known-safe subset of manifest domains.
+# Env var: LATCHGATE_EGRESS_RUNTIME_ALLOWLIST (comma-separated).
+# egress_runtime_allowlist = ["api.github.com", "api.stripe.com"]
+
+# --- Live egress allowlist sync ---
+# SECURITY: the Squid image ships deny-all. No outbound domains are
+# permitted until the gate writes this file. This is the recommended
+# production setup — the gate is the single source of truth.
+#
+# The gate writes (manifest_domains ∪ learned_domains ∩ runtime_allowlist)
+# atomically at startup and after every domain change.
+# egress_live_allowlist_path = "/var/run/latchgate/egress/allowlist.txt"
+
+# Command to run after updating the live allowlist (e.g. signal Squid).
+# Non-zero exit is logged as warning but does not fail the operation.
+# egress_reload_command = "squid -k reconfigure"
+
+# --- Logging ---
+log_level = "info"
+log_format = "auto"   # auto | json | pretty  (auto => pretty in dev TTY, json otherwise)
+
+# --- Lease ---
+# lease_ttl_seconds = 300        # Default lease lifetime (5 min)
+
+# --- Security constants (compile-time, not configurable) ---
+# The following values are compile-time constants in security_constants.rs.
+# They cannot be changed via TOML or environment variables.
+#   max_lease_ttl_seconds = 3600    # Hard ceiling on lease lifetime
+#   approval_ttl_seconds  = 300     # Pending approval expiry
+#   replay_ttl_seconds    = 180     # Anti-replay cache TTL
+#   redis_key_prefix      = "latchgate:jti:"
+
+# --- Dependencies ---
+# redis_url = "redis://127.0.0.1:6379"
+# opa_url   = "http://127.0.0.1:8181"
+
+# --- Registry ---
+# manifests_dir = "definitions/manifests"  # Directory with action manifest YAML files
+
+# --- Operator auth (K2) ---
+# SECURITY: required for approve/deny endpoints. Without this, approval
+# endpoints reject all requests (fail-closed).
+
+# --- Operator credentials with DPoP proof-of-possession (PRODUCTION MANDATORY) ---
+# Production requires dpop_jkt on every credential.
+# Generate keypair: latchgate operator keygen
+#
+# [operator_credentials.alice]
+# api_key = "key-alice-random-secret"
+# dpop_jkt = "base64url-sha256-thumbprint"
+#
+# [operator_credentials.bob]
+# api_key = "key-bob-random-secret"
+# dpop_jkt = "base64url-sha256-thumbprint"
+
+# --- Audit ledger --
+# ledger_db_path = "data/audit.db"   # SQLite database for audit events
+# ledger_jsonl_path = "data/audit.jsonl"  # Optional JSONL sink for SIEM export
+
+# --- Secrets (SOPS) ---
+# Secrets for action execution are stored in a SOPS-encrypted file and
+# decrypted just-in-time at each action call. Only secrets declared in the
+# action manifest are injected (least privilege). Undeclared keys in the
+# SOPS file are discarded before execution.
+#
+# See https://latchgate-docs.pages.dev/secrets/ for the full setup guide.
+#
+# [secrets]
+# sops_secrets_file = "/etc/latchgate/secrets.enc.yaml"
+# sops_key_file     = "/etc/latchgate/sops-age.key"  # age key for SOPS decryption
+# Note: sops_bin ("sops") and sops_cache_ttl_seconds (30) are compile-time
+# constants in security_constants.rs and cannot be changed via config.
+
+# --- Signing material (PRODUCTION MANDATORY) ---
+# Ed25519 signing keys for receipt and grant integrity. Files are created
+# automatically on first run (32-byte seed, mode 0600). Back these up.
+receipt_signing_key_path = "/etc/latchgate/receipt-signing.key"
+grant_signing_key_path = "/etc/latchgate/grant-signing.key"
+
+# JWKS file accumulating all historical receipt verifying keys. Required for
+# receipt verification after key rotation. Updated automatically at startup.
+receipt_keys_jwks_path = "/etc/latchgate/receipt-keys.jwks"
+
+# --- Response schema enforcement ---
+# "deny" (default): reject responses that fail schema validation.
+# "warn": log violation but return the response (dev/onboarding only).
+# SECURITY: production requires "deny".
+response_schema_enforcement = "deny"
+
+# --- Identity (PRODUCTION MANDATORY) ---
+[identity]
+provider = "peercred"
+
+[identity.peercred]
+allow_unmapped = false
+
+# Map Unix UIDs to principals. At least one mapping is required.
+# [identity.peercred.principals]
+# 1001 = { principal = "agent-jira", scopes = ["tools:call"], owner = "alice@company.com" }
+# 1002 = { principal = "agent-email", scopes = ["tools:call", "email:send"], owner = "bob@company.com" }
+# 1003 = { principal = "agent-ci-runner", scopes = ["tools:call"] }  # owner omitted — OK
+
+# --- DPoP ---
+# public_base_url = "http://localhost:3000"  # Canonical URL for htu computation
+                                             # SECURITY: never derive from Host header
+
+# --- Host I/O clients ---
+#
+# Infrastructure connection strings. All are optional — omitting a field
+# disables the corresponding latchgate:io/* host import. Actions that declare
+# that import will receive an error at runtime.
+#
+# v0.1 SCOPE: the runtime ships only the http_api provider. The sections
+# below are reserved for the the next releases backends (database, queue,
+# storage, smtp). They are accepted by the config parser for forward compatibility
+# but have no effect in v0.1.
+#
+# SECURITY: connection strings (including credentials) are operator-managed
+# and set at startup. Providers cannot influence which server is targeted —
+# only the operation parameters (query, recipients, queue name, object key)
+# are provider-controlled, and those are validated against allowed_sinks.
+#
+# Database (latchgate:io/database)
+# [host_io.database]
+# url = "postgres://user:pass@localhost:5432/latchgate"
+#
+# Message queue (latchgate:io/queue)
+# [host_io.queue]
+# url = "amqp://user:pass@localhost:5672/%2f"
+#
+# Object storage (latchgate:io/storage)
+# [host_io.storage]
+# url = "s3://my-artifact-bucket"
+# # Also supported: gs://bucket, az://container, file:///path (dev only)
+#
+# SMTP relay (latchgate:io/smtp)
+# [host_io.smtp]
+# url = "smtp://user:pass@smtp.example.com:587"
+
+# ── Filesystem provider root ──────────────────────────────────────────────────
+#
+# Root directory for fs_read, fs_write, fs_delete operations. All paths in
+# manifests and learned paths are resolved relative to this directory.
+# Must be absolute. Symlinks resolved at startup.
+#
+# fs_root_path = "/home/agent/project"
+
+# Allowed prefixes for per-session filesystem roots.
+# MCP sessions request their root at lease time (from IDE project CWD).
+# The gate validates the path starts with one of these prefixes.
+# Default: [$HOME]. Empty list disables per-session roots entirely.
+# fs_root_allowed_prefixes = ["/home/user/projects", "/tmp/sandboxes"]
+
+# ── Filesystem watcher (Layer 2) — PLANNED, NOT YET IMPLEMENTED ───────────────
+#
+# Reserved for a future release. Defense-in-depth: intercepts file writes
+# via fanotify and blocks any write that did not originate from a Layer 1
+# provider execution. The config parser does not currently recognise this
+# section — these fields have no effect.
+#
+# [fs_watch]
+# paths             = ["/home/agent/project"]
+# recursive         = true          # default: true
+# policy_timeout_ms = 100           # default: 100 — deny on timeout
+# mode              = "enforce"     # "enforce" (default) | "detect"
+# unsafe_detect_only = false        # must be true for detect in production
+
+# --- Webhooks ---
+# Outbound webhook notifications for security events (approval flow,
+# denials, revocations). HMAC-SHA256 signed with retry.
+# Configure zero or more endpoints — each subscribes to specific
+# event types.
+#
+# Delivery modes:
+#   async  — in-process channel, fire-and-forget (dev only)
+#   outbox — transactional outbox in SQLite, zero event loss (default)
+#
+# webhook_mode = "outbox"  # default; set "async" for dev if needed
+#
+# Event types:
+#   approval.pending   — policy returned PendingApproval (high urgency)
+#   approval.granted   — operator approved
+#   approval.denied    — operator denied
+#   approval.expired   — TTL expired without resolution
+#   action.denied      — policy denied an action
+#   action.executed    — action completed successfully
+#   action.failed      — provider execution failed
+#   revocation         — kill-switch activated (critical)
+#   budget.exhausted   — session budget depleted
+#
+# Generate signing secrets with: openssl rand -hex 32
+# Convention: prefix with whsec_
+
+# Slack (incoming webhook — receives generic JSON, use Slack Workflows
+# for Block Kit formatting):
+#
+# [[webhooks]]
+# name = "slack-approvals"
+# url = "https://hooks.slack.com/services/T.../B.../xxx"
+# secret = "whsec_your-signing-secret-here"
+# events = ["approval.pending", "approval.expired"]
+
+# SIEM (Splunk HEC, Elastic, Datadog — standard JSON envelope, no
+# transformation needed):
+#
+# [[webhooks]]
+# name = "security-siem"
+# url = "https://siem.corp.internal/api/v1/events"
+# secret = "whsec_siem-secret"
+# events = ["action.denied", "revocation", "action.executed"]
+# headers = { "Authorization" = "Bearer ${SIEM_TOKEN}" }
+
+# PagerDuty (use a thin proxy or PagerDuty Event Rule to transform
+# the generic envelope to PagerDuty Events API v2 format):
+#
+# [[webhooks]]
+# name = "pagerduty-critical"
+# url = "https://events.pagerduty.com/v2/enqueue"
+# secret = "whsec_pd-secret"
+# events = ["revocation"]
+
+# Full field reference:
+#   name                   — human-readable identifier (required, unique)
+#   url                    — HTTPS endpoint URL (required; HTTP only for
+#                            localhost in dev mode)
+#   secret                 — HMAC-SHA256 signing secret (required)
+#   events                 — list of event types to subscribe to (required)
+#   headers                — extra HTTP headers, supports ${ENV_VAR} (optional)
+#   timeout_seconds        — per-request HTTP timeout (default: 5)
+#   max_retries            — retry on 5xx/timeout; 0 = fire once (default: 3)
+#   retry_backoff_seconds  — backoff delays per attempt (default: [1, 5, 30])
+#   disable                — temporarily disable without removing (default: false)

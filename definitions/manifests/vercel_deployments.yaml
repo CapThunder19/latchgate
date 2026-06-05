@@ -1,0 +1,51 @@
+# vercel_deployments — list Vercel deployments.
+#
+# Low risk: read-only deployment status.
+
+action_id: "vercel_deployments"
+version: "1.0.0"
+tags: ["agent", "team", "devops"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://api.vercel.com/v6/deployments?limit={{limit}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    additionalProperties: false
+    properties:
+      limit:
+        type: string
+        maxLength: 4
+        default: "20"
+        description: "Max deployments to return."
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.vercel.com"
+
+secrets:
+  - name: "VERCEL_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

@@ -1,0 +1,71 @@
+# todoist_create — create a Todoist task.
+#
+# Medium risk: creates tasks visible in the workspace.
+
+action_id: "todoist_create"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.todoist.com/rest/v2/tasks"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    content: "{{content}}"
+    project_id: "{{project_id}}"
+    priority: "{{priority}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - content
+    additionalProperties: false
+    properties:
+      content:
+        type: string
+        minLength: 1
+        maxLength: 4096
+        description: "Task content (supports Markdown)."
+      project_id:
+        type: string
+        maxLength: 64
+        default: ""
+        description: "Target project ID. Inbox if omitted."
+      priority:
+        type: string
+        enum:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+        default: "1"
+        description: "Priority (1=normal, 4=urgent)."
+  max_request_bytes: 16384
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.todoist.com"
+
+secrets:
+  - name: "TODOIST_API_TOKEN"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

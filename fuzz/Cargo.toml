@@ -1,0 +1,56 @@
+[package]
+name = "latchgate-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+latchgate-core = { path = "../crates/latchgate-core" }
+serde_json = "1"
+sha2 = "0.11"
+hex = "0.4"
+
+# Isolate from the parent workspace.
+[workspace]
+members = ["."]
+
+[profile.release]
+panic = "abort"
+overflow-checks = true
+debug-assertions = true
+codegen-units = 1
+
+[[bin]]
+name = "canonical_hash"
+path = "fuzz_targets/canonical_hash.rs"
+doc = false
+
+[[bin]]
+name = "manifest_domain_entry"
+path = "fuzz_targets/manifest_domain_entry.rs"
+doc = false
+
+[[bin]]
+name = "parse_host_from_url"
+path = "fuzz_targets/parse_host_from_url.rs"
+doc = false
+
+[[bin]]
+name = "path_glob_match"
+path = "fuzz_targets/path_glob_match.rs"
+doc = false
+
+[[bin]]
+name = "ip_classification"
+path = "fuzz_targets/ip_classification.rs"
+doc = false
+
+[[bin]]
+name = "domain_allowlist_match"
+path = "fuzz_targets/domain_allowlist_match.rs"
+doc = false

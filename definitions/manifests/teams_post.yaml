@@ -1,0 +1,61 @@
+# teams_post — post a message to Microsoft Teams via webhook.
+#
+# Medium risk: sends messages to external Teams channels.
+# Teams webhook URLs vary per org — domain learning is expected.
+
+action_id: "teams_post"
+version: "1.0.0"
+tags: ["team"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "{{webhook_url}}"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    text: "{{message}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - webhook_url
+      - message
+    additionalProperties: false
+    properties:
+      webhook_url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "Teams incoming webhook URL."
+      message:
+        type: string
+        minLength: 1
+        maxLength: 28000
+        description: "Message text (supports basic HTML subset)."
+  max_request_bytes: 32768
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "*.webhook.office.com"
+
+secrets: []
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

@@ -1,0 +1,37 @@
+/// LatchGate provider contract.
+///
+/// Every provider is a .wasm component that exports a single `execute`
+/// function and imports only the host I/O interfaces it declares in its
+/// action manifest.
+///
+/// The kernel links only manifest-declared imports at instantiation time.
+/// If a provider attempts to use an import it did not declare,
+/// instantiation fails — capability-based security.
+///
+/// v0.1 SCOPE: only `io-http` and `io-log` are linked by the v0.1 runtime.
+/// `io-fs` is linked for `builtin:fs` actions.
+/// `io-smtp`, `io-database`, `io-queue`, and `io-storage` are committed in
+/// the WIT package as forward-compatible declarations for the next versions
+/// providers (`email`, `database`, `queue`, `artifact_store`), whose source
+/// lives in `providers/` under workspace `exclude`.
+
+package latchgate:provider@0.1.0;
+
+world provider {
+    import io-http;
+    import io-fs;
+    import io-smtp;
+    import io-database;
+    import io-queue;
+    import io-storage;
+    import io-log;
+
+    /// Execute a protected action.
+    ///
+    /// Input:  RunTask serialised as JSON (action args, trace context).
+    /// Output: RunOutput serialised as JSON (result payload, metadata).
+    ///
+    /// Errors are returned as the `err` variant with a human-readable
+    /// reason string. The kernel maps all provider errors to 502.
+    export execute: func(task-json: string) -> result<string, string>;
+}

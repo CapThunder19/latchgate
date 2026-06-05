@@ -1,0 +1,73 @@
+# google_tasks_create — create a task in Google Tasks.
+#
+# Medium risk: creates entries in the user's task list. Budget-controlled.
+
+action_id: "google_tasks_create"
+version: "1.0.0"
+tags: ["agent", "team"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://tasks.googleapis.com/tasks/v1/lists/{{tasklist}}/tasks"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    title: "{{title}}"
+    notes: "{{notes}}"
+    due: "{{due}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      tasklist:
+        type: string
+        minLength: 1
+        maxLength: 256
+        default: "@default"
+        description: "Task list ID. Use '@default' for the user's default list."
+      title:
+        type: string
+        minLength: 1
+        maxLength: 1024
+        description: "Task title."
+      notes:
+        type: string
+        maxLength: 8192
+        default: ""
+        description: "Task notes/description."
+      due:
+        type: string
+        maxLength: 64
+        default: ""
+        description: "Due date in RFC 3339 format."
+    required:
+      - title
+    additionalProperties: false
+  max_request_bytes: 16384
+  max_response_bytes: 8192
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "tasks.googleapis.com"
+
+secrets:
+  - name: "GOOGLE_ACCESS_TOKEN"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

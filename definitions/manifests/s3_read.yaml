@@ -1,0 +1,84 @@
+# s3_read — read objects from AWS S3 via pre-signed or IAM-authed URLs.
+#
+# Medium risk: read with auth, can return sensitive data.
+# Split from the former s3_operations to enforce read/write separation.
+#
+# Risk rationale: read with auth credentials, potential PII/sensitive
+# data exposure. See RISK_MODEL.md.
+
+action_id: "s3_read"
+tags: ["data-pipeline"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "S3 pre-signed URL or IAM-authed GET/HEAD endpoint."
+      method:
+        type: string
+        enum:
+          - GET
+          - HEAD
+        description: "HTTP method. Only read operations allowed."
+      headers:
+        type: object
+        additionalProperties:
+          type: string
+        maxProperties: 20
+        description: "Request headers (x-amz-*, Range, etc.)."
+      timeout_ms:
+        type: integer
+        minimum: 1000
+        maximum: 60000
+        default: 30000
+        description: "Request timeout in milliseconds."
+    required:
+      - url
+      - method
+    additionalProperties: false
+  max_request_bytes: 4096
+  max_response_bytes: 5242880
+
+resource_limits:
+  fuel: 10000000
+  memory_mb: 256
+  timeout_seconds: 60
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "*.s3.amazonaws.com"
+    - "*.s3.us-east-1.amazonaws.com"
+    - "*.s3.us-east-2.amazonaws.com"
+    - "*.s3.us-west-1.amazonaws.com"
+    - "*.s3.us-west-2.amazonaws.com"
+    - "*.s3.eu-west-1.amazonaws.com"
+    - "*.s3.eu-west-2.amazonaws.com"
+    - "*.s3.eu-central-1.amazonaws.com"
+    - "*.s3.ap-southeast-1.amazonaws.com"
+    - "*.s3.ap-northeast-1.amazonaws.com"
+    # Operators: add your region via 'latchgate domains add' if not listed.
+
+secrets:
+  - name: "AWS_ACCESS_KEY_ID"
+    required: false
+  - name: "AWS_SECRET_ACCESS_KEY"
+    required: false
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

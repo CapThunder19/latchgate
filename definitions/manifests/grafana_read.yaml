@@ -1,0 +1,62 @@
+# grafana_read — read Grafana dashboards, alerts, and datasource queries.
+#
+# Low risk: read-only monitoring data. Operators using Grafana Cloud
+# should use their *.grafana.net domain; self-hosted operators add
+# their domain via domain learning.
+
+action_id: "grafana_read"
+tags: ["devops", "data-pipeline"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://{{host}}/api/{{endpoint}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - host
+      - endpoint
+    additionalProperties: false
+    properties:
+      host:
+        type: string
+        minLength: 1
+        maxLength: 253
+        description: "Grafana host, e.g. myorg.grafana.net or grafana.internal.example.com"
+      endpoint:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "Grafana API path, e.g. dashboards/uid/abc123, alertmanager/grafana/api/v2/alerts, search?query=cpu"
+  max_request_bytes: 4096
+  max_response_bytes: 2097152
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 10
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "*.grafana.net"
+    # Self-hosted: add your domain via 'latchgate domains add'.
+
+secrets:
+  - name: "GRAFANA_API_KEY"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

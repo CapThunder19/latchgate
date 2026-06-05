@@ -1,0 +1,17 @@
+# Adversarial WASM fixtures for security conformance tests and
+# deterministic fixtures for integration tests.
+
+[workspace]
+members = [
+    "memory_hog",
+    "infinite_loop",
+    "evidence_probe",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+wit-bindgen = "0.36"

@@ -1,0 +1,35 @@
+[package]
+name = "latchgate-webhooks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Outbound webhook notifications for LatchGate security events"
+
+[dependencies]
+# HMAC-SHA256 signing. hmac 0.13 uses digest 0.11, compatible with
+# workspace sha2 = "0.11".
+hmac = "0.13"
+sha2 = { workspace = true }
+
+hex             = { workspace = true }
+bytes           = { workspace = true }
+latchgate-core  = { workspace = true }
+latchgate-config    = { workspace = true }
+latchgate-state = { workspace = true }
+rusqlite        = { workspace = true }
+serde           = { workspace = true }
+serde_json      = { workspace = true }
+tokio           = { workspace = true }
+tracing         = { workspace = true }
+chrono          = { workspace = true }
+uuid            = { workspace = true }
+thiserror       = { workspace = true }
+url             = { workspace = true }
+reqwest         = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+toml  = { workspace = true }
+[lints]
+workspace = true

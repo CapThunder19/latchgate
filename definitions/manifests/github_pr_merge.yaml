@@ -1,0 +1,94 @@
+# github_pr_merge — merge a pull request on GitHub.
+#
+# Critical risk: irreversible change to the default branch. Requires approval.
+
+action_id: "github_pr_merge"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: PUT
+  url_template: "https://api.github.com/repos/{{owner}}/{{repo}}/pulls/{{pull_number}}/merge"
+  headers:
+    Accept: "application/vnd.github.v3+json"
+  body_template:
+    merge_method: "{{merge_method}}"
+    commit_title: "{{commit_title}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      owner:
+        type: string
+        minLength: 1
+        maxLength: 39
+        description: "Repository owner (user or org)."
+      repo:
+        type: string
+        minLength: 1
+        maxLength: 100
+        description: "Repository name."
+      pull_number:
+        type: integer
+        minimum: 1
+        description: "Pull request number."
+      merge_method:
+        type: string
+        enum:
+          - merge
+          - squash
+          - rebase
+        default: "squash"
+        description: "Merge strategy."
+      commit_title:
+        type: string
+        maxLength: 256
+        default: ""
+        description: "Custom merge commit title. Empty uses GitHub default."
+    required:
+      - owner
+      - repo
+      - pull_number
+    additionalProperties: false
+  response_schema:
+    type: object
+    required: [ok]
+    additionalProperties: false
+    properties:
+      ok: { type: boolean }
+      data:
+        type: object
+        properties:
+          merged: { type: boolean, description: "Whether the PR was merged." }
+          sha: { type: string, description: "Merge commit SHA." }
+          message: { type: string, description: "Merge result message." }
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.github.com"
+
+secrets:
+  - name: "GITHUB_TOKEN"
+    required: true
+
+risk_level: "critical"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok", "data"]
+
+declared_side_effects:
+  - "http_write"

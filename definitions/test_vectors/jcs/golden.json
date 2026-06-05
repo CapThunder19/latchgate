@@ -1,0 +1,56 @@
+[
+  {
+    "description": "empty object",
+    "input": {},
+    "canonical": "{}",
+    "canonical_hex": "7b7d",
+    "sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  {
+    "description": "empty array",
+    "input": [],
+    "canonical": "[]",
+    "canonical_hex": "5b5d",
+    "sha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "description": "simple object (keys sorted)",
+    "input": {"b": 2, "a": 1},
+    "canonical": "{\"a\":1,\"b\":2}",
+    "canonical_hex": "7b2261223a312c2262223a327d",
+    "sha256": "sha256:43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+  },
+  {
+    "description": "nested object (recursive key sort)",
+    "input": {"z": {"b": 2, "a": 1}, "a": []},
+    "canonical": "{\"a\":[],\"z\":{\"a\":1,\"b\":2}}",
+    "canonical_hex": "7b2261223a5b5d2c227a223a7b2261223a312c2262223a327d7d",
+    "sha256": "sha256:b36780a102e55932432e64250650c86a1ec30e170bf5384936f87d7499322a4a"
+  },
+  {
+    "description": "mixed types",
+    "input": {"bool": true, "null": null, "str": "hello", "num": 42, "arr": [1, 2]},
+    "canonical": "{\"arr\":[1,2],\"bool\":true,\"null\":null,\"num\":42,\"str\":\"hello\"}",
+    "canonical_hex": "7b22617272223a5b312c325d2c22626f6f6c223a747275652c226e756c6c223a6e756c6c2c226e756d223a34322c22737472223a2268656c6c6f227d",
+    "sha256": "sha256:1105e61c1c1a50cb15b6ada0943f223f1b3697ac5ad471f788774c8b1d04a719"
+  },
+  {
+    "description": "unicode",
+    "input": {"emoji": "🎉", "jp": "日本語"},
+    "canonical": "{\"emoji\":\"🎉\",\"jp\":\"日本語\"}",
+    "canonical_hex": "7b22656d6f6a69223a22f09f8e89222c226a70223a22e697a5e69cace8aa9e227d",
+    "sha256": "sha256:fa688a766099feeb34886acae72139f91571403841f9fc6fc1099b2fe4fbac23"
+  },
+  {
+    "description": "typical HTTP action request body",
+    "input": {"url": "https://api.github.com/repos/anthropics/claude", "method": "GET", "headers": {"Accept": "application/json"}},
+    "canonical": "{\"headers\":{\"Accept\":\"application/json\"},\"method\":\"GET\",\"url\":\"https://api.github.com/repos/anthropics/claude\"}",
+    "sha256": "sha256:d7d4918aecbf74520f837be37b76bc6a9a59beddff31b0d5b0ca11823daf2db9"
+  },
+  {
+    "description": "typical email action request body",
+    "input": {"recipient": "ops@example.com", "subject": "Deploy confirmation", "body": "Deployment v2.1.0 completed successfully."},
+    "canonical": "{\"body\":\"Deployment v2.1.0 completed successfully.\",\"recipient\":\"ops@example.com\",\"subject\":\"Deploy confirmation\"}",
+    "sha256": "sha256:a4b351c873b9e67a8ff38dee907b260f85e1b34370639b5503d8b8da85ccd041"
+  }
+]

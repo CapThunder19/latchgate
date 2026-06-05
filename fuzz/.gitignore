@@ -1,0 +1,7 @@
+target/
+artifacts/
+coverage/
+
+# Evolved corpus entries — commit only curated seeds.
+corpus/*/*
+!corpus/*/.gitkeep

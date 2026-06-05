@@ -1,0 +1,16 @@
+/// Structured logging from provider to host.
+///
+/// Providers use these imports to emit log messages that appear in the
+/// kernel's tracing output, correlated with the current trace_id.
+/// No sink validation needed -- logging is always allowed.
+
+interface io-log {
+    /// Log a debug-level message (visible at RUST_LOG=debug).
+    log-debug: func(message: string);
+
+    /// Log an info-level message (visible at default log level).
+    log-info: func(message: string);
+
+    /// Log a warning-level message.
+    log-warn: func(message: string);
+}

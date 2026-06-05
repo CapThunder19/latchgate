@@ -1,0 +1,13 @@
+[preset]
+name = "agent"
+description = "General-purpose AI agent: code, issues, docs, tasks, search, and filesystem. High-risk and destructive actions gated."
+
+# Actions tagged "agent" — development workflows, issue trackers,
+# documentation, task management, and generic HTTP.
+manifests = "tagged:agent"
+
+[preset.policy]
+# Low and medium risk auto-granted. High/critical (fs_write,
+# github_pr_create, http_delete, etc.) require a named principal
+# or human approval via the Rego risk gate.
+wildcard_grant = "risk_below:high"

@@ -1,0 +1,25 @@
+[package]
+name = "latchgate-registry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Action manifests, digest trust, and JSON Schema validation for LatchGate"
+
+[dependencies]
+latchgate-core = { workspace = true }
+latchgate-config    = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+serde_yaml_ng  = { workspace = true }
+jsonschema     = { workspace = true }
+thiserror      = { workspace = true }
+tracing        = { workspace = true }
+sha2           = { workspace = true }
+hex            = { workspace = true }
+
+[dev-dependencies]
+latchgate-config = { workspace = true, features = ["test-support"] }
+tempfile = { workspace = true }
+[lints]
+workspace = true

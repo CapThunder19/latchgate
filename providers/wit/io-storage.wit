@@ -1,0 +1,28 @@
+/// Host-mediated object storage client.
+///
+/// The provider builds a put request. The kernel (host) manages
+/// connections, TLS, and credential injection via aws-sdk / S3-compatible.
+///
+/// Sink validation: the host checks the bucket name against
+/// allowed_sinks before writing.
+
+interface io-storage {
+    record put-request {
+        bucket: string,
+        key: string,
+        content: list<u8>,
+        content-type: option<string>,
+    }
+
+    record put-receipt {
+        artifact-id: string,
+        content-hash: string,
+        bytes-written: u64,
+    }
+
+    /// Store an object through the host storage client.
+    ///
+    /// Fails if the target bucket is not in allowed_sinks, if storage
+    /// credentials are unavailable, or if the write fails.
+    put-object: func(req: put-request) -> result<put-receipt, string>;
+}

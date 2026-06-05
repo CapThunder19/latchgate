@@ -1,0 +1,67 @@
+# discord_post — post a message to Discord via webhook.
+#
+# Medium risk: sends messages to external Discord channels.
+
+action_id: "discord_post"
+version: "1.0.0"
+tags: ["team"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "{{webhook_url}}"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    content: "{{message}}"
+    username: "{{username}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - webhook_url
+      - message
+    additionalProperties: false
+    properties:
+      webhook_url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "Discord webhook URL."
+      message:
+        type: string
+        minLength: 1
+        maxLength: 2000
+        description: "Message content (max 2000 chars per Discord limits)."
+      username:
+        type: string
+        maxLength: 80
+        default: "LatchGate"
+        description: "Override display name."
+  max_request_bytes: 16384
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "discord.com"
+    - "discordapp.com"
+
+secrets: []
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

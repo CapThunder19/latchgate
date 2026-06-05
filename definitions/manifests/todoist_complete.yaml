@@ -1,0 +1,53 @@
+# todoist_complete — mark a Todoist task as complete.
+#
+# Medium risk: changes task state. Budget-controlled.
+
+action_id: "todoist_complete"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.todoist.com/rest/v2/tasks/{{task_id}}/close"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      task_id:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: "Todoist task ID to complete."
+    required:
+      - task_id
+    additionalProperties: false
+  max_request_bytes: 1024
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.todoist.com"
+
+secrets:
+  - name: "TODOIST_API_TOKEN"
+    required: true
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

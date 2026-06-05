@@ -1,0 +1,59 @@
+# gcal_list — list Google Calendar events.
+#
+# Low risk: read-only calendar access.
+
+action_id: "gcal_list"
+tags: ["team", "research"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://www.googleapis.com/calendar/v3/calendars/{{calendar_id}}/events?maxResults={{max_results}}&orderBy=startTime&singleEvents=true"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - calendar_id
+    additionalProperties: false
+    properties:
+      calendar_id:
+        type: string
+        minLength: 1
+        maxLength: 256
+        default: "primary"
+        description: "Calendar ID. Use 'primary' for the user's main calendar."
+      max_results:
+        type: string
+        maxLength: 4
+        default: "10"
+        description: "Max events to return."
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "www.googleapis.com"
+
+secrets:
+  - name: "GOOGLE_ACCESS_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Pre-commit hook: run the same checks as CI.
+# Install once with: make setup
+set -euo pipefail
+
+exec make --no-print-directory check

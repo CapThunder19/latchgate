@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "LatchGate OPA policy data — starter template.",
+    "",
+    "Copy to data.json and adjust for your environment.",
+    "This file is loaded by OPA at startup (via the bundle in docker-compose).",
+    "",
+    "acl: maps principal => allowed actions and sinks.",
+    "  '*' is the wildcard principal (matches any authenticated caller).",
+    "  Named principals (e.g. 'agent:billing') override the wildcard.",
+    "",
+    "SECURITY: the wildcard principal grants only low-risk read actions.",
+    "All write, high-risk, or service-specific actions require a named principal."
+  ],
+
+  "policy_version": "v1-example",
+
+  "acl": {
+    "*": {
+      "_comment": "Default permissions for any authenticated agent — read-only.",
+      "allowed_actions": ["http_fetch", "github_read"],
+      "allowed_sinks": ["http_read"]
+    },
+
+    "agent:my-agent": {
+      "_comment": "Full permissions for a specific agent principal.",
+      "allowed_actions": ["http_fetch", "http_post", "http_put", "http_patch", "http_delete"],
+      "allowed_sinks": ["http_read", "http_write", "http_delete"]
+    },
+
+    "agent:read-only": {
+      "_comment": "Read-only agent — can fetch HTTP but nothing else.",
+      "allowed_actions": ["http_fetch"],
+      "allowed_sinks": ["http_read"]
+    }
+  }
+}

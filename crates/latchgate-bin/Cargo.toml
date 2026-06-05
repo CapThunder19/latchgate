@@ -1,0 +1,24 @@
+[package]
+name = "latchgate-bin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "LatchGate server + CLI binary entry point"
+
+[[bin]]
+name = "latchgate"
+path = "src/main.rs"
+
+[dependencies]
+latchgate-api  = { workspace = true }
+latchgate-cli  = { workspace = true }
+latchgate-core = { workspace = true }
+latchgate-config    = { workspace = true }
+latchgate-sandbox   = { workspace = true }
+clap           = { workspace = true }
+tokio          = { workspace = true }
+serde_json     = { workspace = true }
+
+[lints]
+workspace = true

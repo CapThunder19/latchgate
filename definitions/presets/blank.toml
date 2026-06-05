@@ -1,0 +1,7 @@
+[preset]
+name = "blank"
+description = "Empty registry — no actions loaded. Add actions individually via the TUI or the manifests directory."
+manifests = "none"
+
+[preset.policy]
+wildcard_grant = "none"

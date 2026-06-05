@@ -1,0 +1,72 @@
+# ── Build artifacts ──────────────────────────────────────────────────────────
+# target/ can be multi-GB. The ci-release target compiles from source
+# inside the container — host artifacts are never needed for it.
+# Exception: the local-release target (used by `make release-docker`)
+# consumes the pre-built musl binary and WASM providers from the host
+# via COPY, so those specific paths stay in the build context.
+target/
+!target/x86_64-unknown-linux-musl/release/latchgate
+!target/providers/
+
+# ── Version control ─────────────────────────────────────────────────────────
+.git/
+.github/
+.gitignore
+.githooks/
+
+# ── Security-sensitive files ────────────────────────────────────────────────
+# Operator private keys must NEVER enter a Docker image layer.
+*.pem
+latchgate.toml
+data/
+
+# ── Development files ───────────────────────────────────────────────────────
+*.md
+!README.md
+LICENSE-*
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+CHANGELOG.md
+banner.png
+Makefile
+deny.toml
+rustfmt.toml
+rust-toolchain.toml
+prometheus.dev.yml
+latchgate.example.toml
+
+# ── Tests & examples (not needed at runtime) ────────────────────────────────
+tests/
+# Exception: Cargo.toml files are needed for workspace resolution during
+# the dependency cache layer (cargo fetch). Source files stay excluded.
+!tests/Cargo.toml
+!tests/stress/Cargo.toml
+examples/
+definitions/test_vectors/
+
+# ── SDK sources (published separately) ──────────────────────────────────────
+sdk/
+
+# ── Deploy configs (not needed inside the image) ────────────────────────────
+deploy/
+# Exception: the manifest digest verifier runs inside the builder stage
+# to validate WASM provider modules against committed digests.
+!deploy/verify-manifest-digests.py
+docker-compose.yml
+
+# ── IDE & OS ────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*~
+
+# ── Language tooling ────────────────────────────────────────────────────────
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# ── Mutation testing ────────────────────────────────────────────────────────
+**/mutants.out*/

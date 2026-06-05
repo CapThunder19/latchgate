@@ -1,0 +1,68 @@
+# google_tasks_delete — delete a Google Tasks entry.
+#
+# High risk: irreversible removal of task data. Requires approval.
+
+action_id: "google_tasks_delete"
+version: "1.0.0"
+tags: ["agent", "team"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: DELETE
+  url_template: "https://tasks.googleapis.com/tasks/v1/lists/{{tasklist}}/tasks/{{task_id}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - tasklist
+      - task_id
+    additionalProperties: false
+    properties:
+      tasklist:
+        type: string
+        minLength: 1
+        maxLength: 256
+        default: "@default"
+        description: "Task list ID."
+      task_id:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Task ID to delete."
+  response_schema:
+    type: object
+    required: [ok]
+    additionalProperties: false
+    properties:
+      ok: { type: boolean }
+  max_request_bytes: 1024
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "tasks.googleapis.com"
+
+secrets:
+  - name: "GOOGLE_ACCESS_TOKEN"
+    required: true
+
+risk_level: "high"
+verifier_kind: http_status
+verification_config:
+  required_fields: ["ok"]
+
+declared_side_effects:
+  - "http_write"

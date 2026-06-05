@@ -1,0 +1,42 @@
+# evidence_probe — deterministic in-sandbox success.
+#
+# Test-only fixture action. Paired with the WASM fixture at
+# tests/providers/evidence_probe/. The provider returns a canned
+# Ok(...) payload without performing any host I/O, so a call to this
+# action succeeds past WASM dispatch and reaches evidence finalization
+# without depending on network, filesystem, or secrets.
+#
+# Used by the integration test that arms a finalize-evidence fault via
+# the `test-hooks` feature on the ledger and asserts the post-dispatch
+# failure branch of the execution pipeline preserves the budget debit.
+
+action_id: "evidence_probe"
+version: "1.0.0"
+provider_module_digest: "{{PROVIDER_DIGEST}}"
+provider_source: "fixture_evidence_probe.wasm"
+
+required_imports:
+  - "latchgate:io/log"
+
+resource_limits:
+  fuel: 500000
+  memory_mb: 32
+  timeout_seconds: 5
+  max_io_calls: 0
+
+io:
+  request_schema:
+    type: object
+    additionalProperties: false
+  max_request_bytes: 4096
+  max_response_bytes: 4096
+
+egress:
+  profile: "none"
+
+secrets: []
+
+risk_level: "low"
+verifier_kind: none
+
+declared_side_effects: []

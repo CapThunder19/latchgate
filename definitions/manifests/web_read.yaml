@@ -1,0 +1,53 @@
+# web_read — general-purpose HTTP GET for web content.
+#
+# Low risk: read-only. All domains go through approval => --learn-domain
+# => remembered for future use. No hardcoded allowlist.
+
+action_id: "web_read"
+tags: ["agent", "team", "research", "coding"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "{{url}}"
+  headers:
+    Accept: "text/html, application/json, */*"
+    User-Agent: "LatchGate/1.0"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - url
+    additionalProperties: false
+    properties:
+      url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "Target URL. Must be http or https."
+  max_request_bytes: 4096
+  max_response_bytes: 2097152
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 10
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains: []
+
+secrets: []
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

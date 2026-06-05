@@ -1,0 +1,126 @@
+{
+  "description": "DPoP proof test scenarios (RFC 9449). These are round-trip tests — JWTs are ephemeral (random keys, live timestamps) so no fixed byte vectors are possible. Each entry documents the property under test and the expected outcome.",
+  "algorithm": "ES256 (P-256 + SHA-256)",
+  "iat_window_secs": { "max_age": 60, "clock_skew": 5 },
+  "test_cases": [
+    {
+      "id": "valid_proof",
+      "description": "Valid proof with matching htm, htu, ath, cnf.jkt, and fresh iat.",
+      "expected": "ALLOW"
+    },
+    {
+      "id": "wrong_method",
+      "description": "htm in proof is 'POST', expected_htm is 'GET'. Method mismatch.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "htm mismatch"
+    },
+    {
+      "id": "wrong_url",
+      "description": "htu in proof points to a different endpoint path.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "htu mismatch"
+    },
+    {
+      "id": "expired_iat",
+      "description": "iat is more than IAT_MAX_AGE_SECS seconds in the past.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "iat too old"
+    },
+    {
+      "id": "future_iat",
+      "description": "iat is more than IAT_CLOCK_SKEW_SECS seconds in the future.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "iat too far in future"
+    },
+    {
+      "id": "wrong_key_binding",
+      "description": "cnf_jkt passed to verifier belongs to a different key than embedded in the proof.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "cnf.jkt"
+    },
+    {
+      "id": "wrong_ath",
+      "description": "Proof was signed with ath = SHA-256(lease_A), but verifier is given lease_B.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "ath"
+    },
+    {
+      "id": "tampered_header",
+      "description": "A character is appended to the base64url header segment after signing.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "note": "The embedded JWK is parsed from the tampered header, producing a different verifying key or invalid base64url. Signature verification fails."
+    },
+    {
+      "id": "tampered_payload",
+      "description": "A character is appended to the base64url payload segment after signing.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "signature verification failed"
+    },
+    {
+      "id": "header_key_vs_signing_key_mismatch",
+      "description": "JWT is signed with key A but embeds key B's JWK in the header. Signature verification against the embedded key B fails.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP"
+    },
+    {
+      "id": "missing_jwk_header",
+      "description": "JWT header has no 'jwk' claim.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "jwk"
+    },
+    {
+      "id": "wrong_typ",
+      "description": "typ header is 'JWT' instead of 'dpop+jwt'.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP",
+      "error_contains": "typ"
+    },
+    {
+      "id": "two_part_token",
+      "description": "Input has only two dot-separated segments.",
+      "expected": "DENY",
+      "error_variant": "InvalidDPoP"
+    }
+  ],
+  "htu_normalisation_cases": [
+    {
+      "input": "https://host.example/path?q=1#frag",
+      "normalised": "https://host.example/path",
+      "note": "Query and fragment stripped"
+    },
+    {
+      "input": "HTTPS://HOST.EXAMPLE/Path",
+      "normalised": "https://host.example/Path",
+      "note": "Scheme and host lowercased; path case preserved"
+    },
+    {
+      "input": "https://host.example:443/api",
+      "normalised": "https://host.example/api",
+      "note": "Default HTTPS port removed"
+    },
+    {
+      "input": "http://host.example:80/api",
+      "normalised": "http://host.example/api",
+      "note": "Default HTTP port removed"
+    },
+    {
+      "input": "https://host.example:8443/api",
+      "normalised": "https://host.example:8443/api",
+      "note": "Non-default port preserved"
+    },
+    {
+      "input": "https://host.example/path%2Fsegment",
+      "normalised": "https://host.example/path%2Fsegment",
+      "note": "Percent-encoding in path must not be decoded"
+    }
+  ]
+}

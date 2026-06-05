@@ -1,0 +1,77 @@
+# telegram_send — send a message via Telegram Bot API.
+#
+# Medium risk: sends messages to external Telegram chats.
+
+action_id: "telegram_send"
+version: "1.0.0"
+tags: ["devops", "team"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: POST
+  url_template: "https://api.telegram.org/bot{{bot_token}}/sendMessage"
+  headers:
+    Content-Type: "application/json"
+  body_template:
+    chat_id: "{{chat_id}}"
+    text: "{{text}}"
+    parse_mode: "{{parse_mode}}"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - bot_token
+      - chat_id
+      - text
+    additionalProperties: false
+    properties:
+      bot_token:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: "Telegram bot token."
+      chat_id:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: "Target chat ID or @channel_name."
+      text:
+        type: string
+        minLength: 1
+        maxLength: 4096
+        description: "Message text."
+      parse_mode:
+        type: string
+        enum:
+          - HTML
+          - Markdown
+          - MarkdownV2
+        default: "Markdown"
+        description: "Text formatting mode."
+  max_request_bytes: 16384
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 3
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.telegram.org"
+
+secrets:
+  - name: "TELEGRAM_BOT_TOKEN"
+    required: false
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

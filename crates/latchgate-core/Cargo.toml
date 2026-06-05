@@ -1,0 +1,34 @@
+[package]
+name = "latchgate-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Domain types, canonical hashing, and security primitives for LatchGate"
+
+[dependencies]
+serde                    = { workspace = true }
+serde_json               = { workspace = true }
+serde_json_canonicalizer = { workspace = true }
+sha2                     = { workspace = true }
+hex                      = { workspace = true }
+uuid                     = { workspace = true }
+chrono                   = { workspace = true }
+thiserror                = { workspace = true }
+tokio                    = { workspace = true }
+tracing                  = { workspace = true }
+subtle                   = { workspace = true }
+url                      = { workspace = true }
+globset                  = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true }
+
+[features]
+default = []
+
+[dev-dependencies]
+tempfile = { workspace = true }
+rand     = { workspace = true }
+[lints]
+workspace = true

@@ -1,0 +1,59 @@
+# jira_read — read Jira issues, projects, and search results.
+#
+# Low risk: read-only access to Jira Cloud. Stable Atlassian domain.
+
+action_id: "jira_read"
+tags: ["agent", "team", "research"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://{{domain}}/rest/api/3/{{endpoint}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - domain
+      - endpoint
+    additionalProperties: false
+    properties:
+      domain:
+        type: string
+        minLength: 1
+        maxLength: 253
+        description: "Jira instance domain, e.g. mycompany.atlassian.net"
+      endpoint:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "Jira REST API path, e.g. issue/PROJ-123, search?jql=..."
+  max_request_bytes: 4096
+  max_response_bytes: 2097152
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 10
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "*.atlassian.net"
+
+secrets:
+  - name: "JIRA_API_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

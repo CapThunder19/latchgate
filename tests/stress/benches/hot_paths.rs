@@ -1,0 +1,164 @@
+//! Hot-path benchmarks for latency-sensitive per-request operations.
+//!
+//! Three operations dominate the auth pipeline cost per request:
+//!   1. DPoP proof verification (P-256 ECDSA sign + verify round-trip)
+//!   2. Policy evaluation (embedded Rego via regorus)
+//!   3. WASM module instantiation (per-call cost for short tasks)
+//!
+//! Run: `cargo bench --package latchgate-stress`
+//!
+//! CI integration: `benchmark-action/github-action-benchmark` with a
+//! 150% regression threshold (comments on PR, no auto-fail). Nightly only.
+
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+
+// ---------------------------------------------------------------------------
+// 1. DPoP proof sign + verify round-trip
+// ---------------------------------------------------------------------------
+
+fn bench_dpop_sign_verify(c: &mut Criterion) {
+    use latchgate_auth::dpop::verify::verify_dpop_proof;
+    use latchgate_auth::dpop::{
+        compute_ath, compute_jwk_thumbprint, generate_dpop_keypair, sign_dpop_proof,
+    };
+
+    let (sk, pk) = generate_dpop_keypair().unwrap();
+    let jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
+    let htm = "POST";
+    let htu = "http://localhost:3000/v1/actions/http_get/execute";
+    let lease_jwt = "eyJhbGciOiJFUzI1NiJ9.bench-lease-placeholder";
+    let ath = compute_ath(lease_jwt);
+
+    c.bench_function("dpop_sign_verify_p256", |b| {
+        b.iter(|| {
+            let jti = format!("bench-{}", nanos_id());
+            let proof = sign_dpop_proof(&sk, htm, htu, &ath, &jti).unwrap();
+            let result = verify_dpop_proof(&proof, htm, htu, lease_jwt, &jkt);
+            black_box(result)
+        })
+    });
+}
+
+// ---------------------------------------------------------------------------
+// 2. Embedded policy evaluation (regorus)
+// ---------------------------------------------------------------------------
+
+fn bench_policy_eval(c: &mut Criterion) {
+    use latchgate_core::{BudgetSnapshot, EgressProfile, RiskLevel, TrustVerdict};
+    use latchgate_policy::{
+        PolicyAction, PolicyClient, PolicyIdentity, PolicyInput, PolicyRequest, PolicyResolution,
+    };
+    use std::sync::Arc;
+
+    let rego = latchgate_cli::embedded_policies::POLICY_REGO;
+
+    let data_json = serde_json::json!({
+        "policy_version": "bench",
+        "acl": {
+            "*": {
+                "allowed_actions": ["http_get"],
+                "allowed_sinks": ["http_read"],
+            }
+        }
+    });
+    let data_str = serde_json::to_string(&data_json).unwrap();
+    let policy = PolicyClient::embedded(rego, Some(&data_str));
+
+    let scopes: Vec<String> = vec!["tools:call".into()];
+    let required_scopes: Vec<Arc<str>> = vec!["tools:call".into()];
+    let sinks: Vec<Arc<str>> = vec!["http_read".into()];
+    let egress = EgressProfile::None;
+
+    let input = PolicyInput {
+        identity: PolicyIdentity {
+            principal: "bench-principal".into(),
+            session_id: "bench-session".into(),
+            scopes: &scopes,
+            required_scopes: &required_scopes,
+        },
+        action: PolicyAction {
+            action_id: "http_get".into(),
+            action_version: "0.1.0",
+            action_risk_level: RiskLevel::Low,
+            action_trust_verdict: Arc::new(TrustVerdict::DigestOk),
+            action_category: "http",
+        },
+        request: PolicyRequest {
+            request_hash: "deadbeef",
+            requested_sinks: &sinks,
+            requested_secrets: &[],
+            egress_profile: &egress,
+            provider_context: None,
+            fs_path: None,
+        },
+        budgets_before: BudgetSnapshot {
+            calls_remaining: 1000,
+        },
+        resolution: PolicyResolution::default(),
+    };
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    c.bench_function("policy_eval_embedded_rego", |b| {
+        b.iter(|| {
+            let result = rt.block_on(policy.evaluate(black_box(&input)));
+            black_box(result)
+        })
+    });
+}
+
+// ---------------------------------------------------------------------------
+// 3. WASM module instantiation
+// ---------------------------------------------------------------------------
+
+fn bench_wasm_instantiation(c: &mut Criterion) {
+    use latchgate_providers::WasmRuntime;
+    use sha2::{Digest, Sha256};
+
+    let runtime = WasmRuntime::new(4).unwrap();
+
+    let wasm_entry: Option<(&str, &[u8])> = latchgate_cli::embedded_providers::PROVIDERS
+        .iter()
+        .find(|(name, _)| *name == "http_api")
+        .map(|(name, bytes)| (*name, *bytes));
+
+    let Some((_name, wasm_bytes)) = wasm_entry else {
+        eprintln!(
+            "skipping wasm_instantiation bench: no embedded http_api provider. \
+             Run `make providers` first."
+        );
+        return;
+    };
+
+    let digest = format!("sha256:{}", hex::encode(Sha256::digest(wasm_bytes)));
+
+    c.bench_function("wasm_precompile_http_api", |b| {
+        b.iter(|| {
+            let result = runtime.precompile(black_box(wasm_bytes), black_box(&digest));
+            black_box(result)
+        })
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn nanos_id() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64
+}
+
+criterion_group!(
+    benches,
+    bench_dpop_sign_verify,
+    bench_policy_eval,
+    bench_wasm_instantiation
+);
+criterion_main!(benches);

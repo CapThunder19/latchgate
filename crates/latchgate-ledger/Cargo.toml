@@ -1,0 +1,39 @@
+[package]
+name = "latchgate-ledger"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Append-only audit ledger, JSONL export, and Prometheus metrics for LatchGate"
+
+[features]
+# Deterministic fault-injection hooks for integration testing.
+#
+# SECURITY: gated behind a non-default feature so production builds
+# cannot arm a fault. The release consumers (`latchgate-api`,
+# `latchgate-kernel`, every other release workspace member) do NOT
+# enable this feature — it is turned on only by the `latchgate-tests`
+# workspace member. Verify with:
+#
+#     cargo tree -p latchgate-api -f "{p} {f}" | grep latchgate-ledger
+#
+# The emitted feature set for release crates MUST NOT include
+# `test-hooks`.
+test-hooks = []
+
+[dependencies]
+latchgate-core  = { workspace = true }
+latchgate-state = { workspace = true }
+serde           = { workspace = true }
+serde_json      = { workspace = true }
+rusqlite        = { workspace = true }
+rustix          = { workspace = true }
+thiserror       = { workspace = true }
+tracing         = { workspace = true }
+prometheus-client = { workspace = true }
+chrono          = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+[lints]
+workspace = true

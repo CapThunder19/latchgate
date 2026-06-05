@@ -1,0 +1,61 @@
+[package]
+name = "latchgate-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "HTTP/UDS API, transport, and server binary for LatchGate"
+
+[features]
+default = []
+## Forward unsafe dev mode gate to latchgate-core. Never enable in release builds.
+unsafe-dev = ["latchgate-config/unsafe-dev"]
+
+[lib]
+name = "latchgate_api"
+path = "src/lib.rs"
+
+[dependencies]
+latchgate-core      = { workspace = true }
+latchgate-config    = { workspace = true }
+latchgate-auth      = { workspace = true }
+latchgate-registry  = { workspace = true }
+latchgate-policy    = { workspace = true }
+latchgate-state     = { workspace = true }
+latchgate-providers = { workspace = true }
+latchgate-ledger    = { workspace = true }
+latchgate-kernel    = { workspace = true, features = ["http"] }
+latchgate-webhooks  = { workspace = true }
+latchgate-embed     = { workspace = true }
+toml                = { workspace = true }
+axum                = { workspace = true }
+tokio               = { workspace = true }
+tower               = { workspace = true }
+tower-http          = { workspace = true }
+serde               = { workspace = true }
+serde_json          = { workspace = true }
+tracing             = { workspace = true }
+tracing-subscriber  = { workspace = true }
+tracing-appender    = { workspace = true }
+chrono              = { workspace = true }
+rand                = { workspace = true }
+hex                 = { workspace = true }
+sha2                = { workspace = true }
+rustls              = { workspace = true }
+tokio-rustls        = { workspace = true }
+rustls-pemfile      = { workspace = true }
+rustls-pki-types    = { workspace = true }
+hyper               = { workspace = true, features = ["server"] }
+hyper-util          = { workspace = true }
+
+[dev-dependencies]
+latchgate-config    = { workspace = true, features = ["test-support"] }
+latchgate-kernel    = { workspace = true, features = ["http", "test-support"] }
+latchgate-crypto    = { workspace = true }
+dashmap             = { workspace = true }
+tempfile            = { workspace = true }
+uuid                = { workspace = true }
+rcgen               = { workspace = true }
+libc                = { workspace = true }
+[lints]
+workspace = true

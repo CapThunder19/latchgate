@@ -1,0 +1,7 @@
+[preset]
+name = "ops"
+description = "Full operations: agent + devops actions. Low and medium auto-granted; infrastructure changes and deploys require approval."
+manifests = "tagged:agent,devops"
+
+[preset.policy]
+wildcard_grant = "risk_below:high"

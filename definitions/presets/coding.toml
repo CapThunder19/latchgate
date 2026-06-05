@@ -1,0 +1,19 @@
+[preset]
+name = "coding"
+description = "Coding agent: filesystem, GitHub, web search. Writes and PRs gated."
+
+# 12 actions: fs_read, fs_write, fs_delete, http_fetch, github_read,
+# github_search, github_create_issue, github_pr_create, github_pr_comment,
+# github_comment_issue, web_read, npm_read.
+#
+# No external credentials required for the filesystem-only subset
+# (fs_read, fs_write, fs_delete, http_fetch). Add GITHUB_TOKEN in
+# SOPS secrets to enable GitHub actions.
+manifests = "tagged:coding"
+
+[preset.policy]
+# Low and medium auto-granted (reads, issue comments, searches).
+# High (fs_write, github_pr_create) and critical (fs_delete) require
+# human approval — the operator sees exactly what the agent wants to
+# write or delete before it happens.
+wildcard_grant = "risk_below:high"

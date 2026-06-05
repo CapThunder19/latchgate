@@ -1,0 +1,54 @@
+# npm_read — read package metadata from the npm registry.
+#
+# Low risk: read-only, public registry data. No auth required for
+# public packages; optional token for private scoped packages.
+
+action_id: "npm_read"
+tags: ["agent", "team", "research", "coding"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://registry.npmjs.org/{{path}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - path
+    additionalProperties: false
+    properties:
+      path:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "Registry path, e.g. express, @types/node, express/latest"
+  max_request_bytes: 4096
+  max_response_bytes: 2097152
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 10
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "registry.npmjs.org"
+
+secrets:
+  - name: "NPM_TOKEN"
+    required: false
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

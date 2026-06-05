@@ -1,0 +1,21 @@
+[package]
+name = "latchgate-crypto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Ed25519 signing, verification, and key management for LatchGate security artifacts"
+
+[dependencies]
+latchgate-core = { workspace = true }
+ed25519-dalek  = { workspace = true }
+hex            = { workspace = true }
+rand           = { workspace = true }
+chrono         = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+tracing        = { workspace = true }
+
+[dev-dependencies]
+[lints]
+workspace = true

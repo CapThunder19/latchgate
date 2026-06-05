@@ -1,0 +1,24 @@
+[package]
+name = "latchgate-embed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Embedded assets and egress sync shared between server and CLI for LatchGate"
+
+[dependencies]
+latchgate-core     = { workspace = true }
+latchgate-config   = { workspace = true }
+latchgate-registry = { workspace = true }
+latchgate-ledger   = { workspace = true }
+include_dir        = { workspace = true }
+serde              = { workspace = true }
+thiserror          = { workspace = true }
+toml               = { workspace = true }
+tracing            = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+latchgate-config = { workspace = true, features = ["test-support"] }
+[lints]
+workspace = true

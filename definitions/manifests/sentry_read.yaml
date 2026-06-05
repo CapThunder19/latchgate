@@ -1,0 +1,53 @@
+# sentry_read — read Sentry issues, events, and project data.
+#
+# Low risk: read-only access to error tracking data. Stable API domain.
+
+action_id: "sentry_read"
+tags: ["agent", "team", "devops"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://sentry.io/api/0/{{endpoint}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - endpoint
+    additionalProperties: false
+    properties:
+      endpoint:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "Sentry API path, e.g. projects/org/project/issues/, issues/12345/events/"
+  max_request_bytes: 4096
+  max_response_bytes: 2097152
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 10
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "sentry.io"
+
+secrets:
+  - name: "SENTRY_AUTH_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

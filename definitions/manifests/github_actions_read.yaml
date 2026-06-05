@@ -1,0 +1,66 @@
+# github_actions_read — read GitHub Actions workflow runs and status.
+#
+# Low risk: read-only CI/CD status. Essential for coding agents
+# that need to check whether builds passed before proceeding.
+
+action_id: "github_actions_read"
+tags: ["agent", "team", "devops"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://api.github.com/repos/{{owner}}/{{repo}}/actions/{{endpoint}}"
+  headers:
+    Accept: "application/vnd.github.v3+json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - owner
+      - repo
+      - endpoint
+    additionalProperties: false
+    properties:
+      owner:
+        type: string
+        minLength: 1
+        maxLength: 39
+        description: "Repository owner."
+      repo:
+        type: string
+        minLength: 1
+        maxLength: 100
+        description: "Repository name."
+      endpoint:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "Actions API path, e.g. runs, runs/12345, workflows, workflows/ci.yml/runs"
+  max_request_bytes: 4096
+  max_response_bytes: 2097152
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 10
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.github.com"
+
+secrets:
+  - name: "GITHUB_TOKEN"
+    required: true
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

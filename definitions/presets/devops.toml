@@ -1,0 +1,10 @@
+[preset]
+name = "devops"
+description = "Infrastructure and deployment: CI/CD, DNS, monitoring, cloud storage, incident management."
+
+manifests = "tagged:devops"
+
+[preset.policy]
+# Reads auto-granted (Datadog, Grafana, Sentry, Docker Hub, Render status).
+# Deployments, DNS changes, and S3 writes require human approval.
+wildcard_grant = "risk_below:high"

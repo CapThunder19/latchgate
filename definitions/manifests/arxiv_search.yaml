@@ -1,0 +1,61 @@
+# arxiv_search — search and retrieve arXiv papers.
+#
+# Low risk: read-only access to the arXiv API.
+
+action_id: "arxiv_search"
+tags: ["agent", "team", "research"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://export.arxiv.org/api/query?search_query={{query}}&start={{start}}&max_results={{max_results}}"
+  headers:
+    Accept: "application/xml"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - query
+    additionalProperties: false
+    properties:
+      query:
+        type: string
+        minLength: 1
+        maxLength: 1024
+        description: "arXiv search query, e.g. all:transformer+AND+cat:cs.AI"
+      start:
+        type: string
+        maxLength: 10
+        default: "0"
+        description: "Result offset for pagination."
+      max_results:
+        type: string
+        maxLength: 4
+        default: "10"
+        description: "Number of results to return (max 100)."
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "export.arxiv.org"
+
+secrets: []
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

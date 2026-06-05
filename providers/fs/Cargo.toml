@@ -1,0 +1,21 @@
+[package]
+name        = "latchgate-provider-fs"
+version.workspace = true
+edition.workspace = true
+description = "Filesystem provider for LatchGate — compiled to wasm32-wasip2"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+base64      = { workspace = true }
+
+[package.metadata.component]
+package = "latchgate:provider"
+
+[package.metadata.component.target]
+world = "provider"
+path  = "../wit"

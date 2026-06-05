@@ -1,0 +1,60 @@
+# obsidian_write — create or update notes in Obsidian via Local REST API.
+#
+# Medium risk: modifies local vault content.
+
+action_id: "obsidian_write"
+version: "1.0.0"
+tags: ["team"]
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: PUT
+  url_template: "http://localhost:27124/vault/{{path}}"
+  headers:
+    Content-Type: "text/markdown"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - path
+      - content
+    additionalProperties: false
+    properties:
+      path:
+        type: string
+        minLength: 1
+        maxLength: 512
+        pattern: "^[a-zA-Z0-9_][a-zA-Z0-9_ /.()-]*\\.md$"
+        description: "Note path relative to vault root, must end in .md."
+      content:
+        type: string
+        minLength: 1
+        maxLength: 262144
+        description: "Markdown content to write."
+  max_request_bytes: 262144
+  max_response_bytes: 4096
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 15
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "localhost"
+
+secrets:
+  - name: "OBSIDIAN_API_KEY"
+    required: false
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"

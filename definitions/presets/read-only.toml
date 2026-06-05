@@ -1,0 +1,11 @@
+[preset]
+name = "read-only"
+description = "Read and search only — web, APIs, docs, feeds, and public registries. All write actions blocked."
+
+manifests = "tagged:research"
+
+[preset.policy]
+# Only low risk (read-only, no auth) auto-granted.
+# Authenticated reads (http_bearer_get, gmail_read) require
+# a named principal or approval.
+wildcard_grant = "risk_below:medium"

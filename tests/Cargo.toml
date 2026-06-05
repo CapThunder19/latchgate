@@ -1,0 +1,48 @@
+[package]
+name = "latchgate-tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[[test]]
+name = "integration"
+path = "integration/main.rs"
+
+[[test]]
+name = "standalone"
+path = "standalone/main.rs"
+
+[dependencies]
+latchgate-core      = { workspace = true }
+latchgate-crypto    = { workspace = true }
+latchgate-config    = { workspace = true }
+latchgate-auth      = { workspace = true }
+latchgate-registry  = { workspace = true }
+latchgate-policy    = { workspace = true }
+latchgate-state     = { workspace = true }
+latchgate-providers = { workspace = true }
+latchgate-ledger    = { workspace = true, features = ["test-hooks"] }
+latchgate-kernel    = { workspace = true, features = ["test-hooks"] }
+latchgate-api       = { workspace = true }
+latchgate-cli       = { workspace = true }
+latchgate-webhooks  = { workspace = true }
+
+axum       = { workspace = true }
+tower      = { workspace = true }
+tokio      = { workspace = true }
+serde_json = { workspace = true }
+redis      = { workspace = true }
+chrono     = { workspace = true }
+sha2       = { workspace = true }
+hex        = { workspace = true }
+uuid       = { workspace = true }
+rusqlite   = { workspace = true }
+tempfile   = { workspace = true }
+toml       = { workspace = true }
+dashmap    = { workspace = true }
+zeroize    = { workspace = true }
+[lints]
+workspace = true

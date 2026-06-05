@@ -1,0 +1,68 @@
+# github_search — search GitHub repositories, code, issues, and users.
+#
+# Low risk: read-only search API.
+
+action_id: "github_search"
+tags: ["agent", "team", "research", "coding"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://api.github.com/search/{{category}}?q={{query}}&per_page={{per_page}}"
+  headers:
+    Accept: "application/vnd.github.v3+json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - category
+      - query
+    additionalProperties: false
+    properties:
+      category:
+        type: string
+        enum:
+          - repositories
+          - code
+          - issues
+          - users
+          - topics
+        description: "Search category."
+      query:
+        type: string
+        minLength: 1
+        maxLength: 1024
+        description: "GitHub search query string."
+      per_page:
+        type: string
+        maxLength: 4
+        default: "10"
+        description: "Results per page (max 100)."
+  max_request_bytes: 4096
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "api.github.com"
+
+secrets:
+  - name: "GITHUB_TOKEN"
+    required: false
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

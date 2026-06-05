@@ -1,0 +1,54 @@
+# docker_hub_read — read Docker Hub image metadata, tags, and repos.
+#
+# Low risk: read-only, public registry data. Optional auth for
+# private repos and higher rate limits.
+
+action_id: "docker_hub_read"
+tags: ["agent", "team", "devops"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: GET
+  url_template: "https://hub.docker.com/v2/{{path}}"
+  headers:
+    Accept: "application/json"
+
+io:
+  request_schema:
+    type: object
+    required:
+      - path
+    additionalProperties: false
+    properties:
+      path:
+        type: string
+        minLength: 1
+        maxLength: 512
+        description: "Docker Hub API path, e.g. repositories/library/nginx/tags, namespaces/myorg/repositories"
+  max_request_bytes: 4096
+  max_response_bytes: 2097152
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 10
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains:
+    - "hub.docker.com"
+
+secrets:
+  - name: "DOCKER_HUB_TOKEN"
+    required: false
+
+risk_level: "low"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_read"

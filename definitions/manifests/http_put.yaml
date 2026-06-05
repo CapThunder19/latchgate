@@ -1,0 +1,65 @@
+# http_put — generic HTTP PUT action for full resource replacement.
+#
+# Medium risk: replaces external state. Budget-controlled.
+#
+# Risk rationale: write to one external endpoint, operator-scoped.
+#
+# Generic action — ships with empty allowed_domains.
+# Operators must configure domains for their environment.
+# See manifests/_examples/http_put.yaml for a demo configuration.
+
+action_id: "http_put"
+tags: ["agent", "team"]
+version: "1.0.0"
+provider_module_digest: "builtin:http_api"
+
+required_imports:
+  - "latchgate:io/http"
+  - "latchgate:io/log"
+template:
+  method: PUT
+  url_template: "{{url}}"
+  headers:
+    Content-Type: "application/json"
+  body_template: "{{body}}"
+
+io:
+  request_schema:
+    type: object
+    properties:
+      url:
+        type: string
+        format: uri
+        minLength: 1
+        maxLength: 2048
+        description: "API endpoint to PUT."
+      body:
+        type: string
+        maxLength: 262144
+        description: "JSON body (as string)."
+    required:
+      - url
+      - body
+    additionalProperties: false
+  max_request_bytes: 262144
+  max_response_bytes: 1048576
+
+resource_limits:
+  fuel: 5000000
+  memory_mb: 128
+  timeout_seconds: 30
+  max_io_calls: 5
+
+egress:
+  profile: "proxy_allowlist"
+  allowed_domains: []
+
+secrets:
+  - name: "API_TOKEN"
+    required: false
+
+risk_level: "medium"
+verifier_kind: http_status
+
+declared_side_effects:
+  - "http_write"
