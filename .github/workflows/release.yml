@@ -149,6 +149,21 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install gnu-tar
 
+      - name: Strip linker overrides for cross builds
+        if: matrix.cross
+        run: |
+          # .cargo/config.toml sets linker="clang" with -fuse-ld=lld for
+          # Linux targets. Cross supplies aarch64-linux-gnu-gcc, which
+          # rejects the clang-only -fuse-ld=lld flag. Remove the aarch64
+          # target section so Cross uses its native toolchain.
+          python3 -c "
+          import pathlib, re
+          p = pathlib.Path('.cargo/config.toml')
+          p.write_text(re.sub(
+              r'# ── Linux aarch64.*?\[target\.aarch64-unknown-linux-gnu\]\n[^\[]*',
+              '', p.read_text(), flags=re.DOTALL))
+          "
+
       - name: Build
         run: |
           if [ "${{ matrix.cross }}" = "true" ]; then
@@ -245,9 +260,12 @@ jobs:
       - name: Generate SBOM
         run: |
           cargo install cargo-cyclonedx --locked
-          cargo cyclonedx --format json --top-level
-          # cargo-cyclonedx names output after the crate; rename for release.
-          SBOM=$(find . -maxdepth 1 -name '*.cdx.json' | head -1)
+          # Virtual workspaces have no root [package], so --top-level
+          # produces nothing. Target the shipped binary crate instead,
+          # which captures the full transitive dependency tree.
+          cargo cyclonedx --format json \
+            --manifest-path crates/latchgate-bin/Cargo.toml
+          SBOM=$(find crates/latchgate-bin -maxdepth 1 -name '*.cdx.json' | head -1)
           [ -n "$SBOM" ] || { echo "::error::No SBOM file generated"; exit 1; }
           cp "$SBOM" sbom-${{ matrix.target }}.json
 
