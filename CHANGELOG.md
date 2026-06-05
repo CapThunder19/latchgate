@@ -7,6 +7,27 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.1.1] — 2026-06-05
+
+### Fixed
+
+- Cross-platform `O_PATH` handling: macOS builds failed because `libc::O_PATH`
+  is Linux-only. Introduced a platform-conditional constant that falls back to
+  `O_RDONLY` on non-Linux targets, preserving the same security invariants
+  (`O_DIRECTORY`, `O_NOFOLLOW`, `O_CLOEXEC` are enforced on all platforms).
+- Cross-compilation for `aarch64-unknown-linux-gnu`: added `Cross.toml` to
+  install `clang` in the cross container.
+- SBOM generation: replaced removed `--output-file` flag in `cargo-cyclonedx`
+  with `--top-level` and deterministic rename.
+- OpenSSF Scorecard workflow: corrected `ossf/scorecard-action` commit hash.
+
+### Added
+
+- Minisign signing of release artifacts and `install.sh` in the release
+  pipeline; `install.sh` now verifies signatures and fails closed when
+  `minisign` is absent (bypassable with `LATCHGATE_SKIP_SIGNATURE_CHECK=1`).
+- npm trusted publishing via OIDC (replaces `NPM_TOKEN`).
+
 ## [0.1.0] — 2026-06-01
 
 First public release. The security model is production-ready; the API and
@@ -378,4 +399,5 @@ AI SDK, OpenAI Agents, Pydantic AI.
   `spec/` => `definitions/`, `policies/` => `definitions/policies/`.
   Install-output layouts (`.latchgate/`, `share/latchgate/`) unchanged.
 
+[0.1.1]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.1
 [0.1.0]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.0
