@@ -7,6 +7,49 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.1.4] — 2026-06-06
+
+### Fixed
+
+- Cross-compilation for `aarch64-unknown-linux-gnu`: the default cross 0.2.5
+  Docker image ships Ubuntu 16.04 (glibc 2.23), which lacks `memfd_create`
+  (added in glibc 2.27). `Cross.toml` now overrides the container image to
+  `:main` (Ubuntu 20.04 / glibc 2.31).
+
+### Changed
+
+- **wasmtime 36 => 45, wasmtime-wasi 36 => 45** — zero source changes in
+  `crates/`; the wasmtime p2 API surface (`WasiView`, `HasData`, `bindgen!`,
+  `ResourceTable`, `Store`/`Config`/`fuel`/`epoch`, `Trap` downcast) was fully
+  backward-compatible across all 9 major versions. Removed deprecated
+  `Config::async_support()` (no-op in wasmtime 45). Fixed two new clippy lints
+  from rustc 1.93 (`expect_used` in json.rs, `cloned_ref_to_slice_refs` in
+  sandbox.rs). MSRV bumped from 1.88 to 1.93 across `rust-toolchain.toml`,
+  `Cargo.toml`, Dockerfile, CI workflows, Makefile, and
+  `deploy/pin-digests.sh`. Re-pinned all Docker image digests for supply-chain
+  integrity.
+- **lapin 3.x => 4.x** — replaced `deadpool-lapin` with a direct
+  `deadpool::managed::Manager` implementation in the new `amqp_pool` module,
+  matching what `deadpool-lapin` did internally (`deadpool-lapin` has no
+  lapin 4.x-compatible release). Adapted `basic_publish` args for lapin 4.x
+  `ShortString` protocol types. Switched
+  `lapin::publisher_confirm::Confirmation` => `lapin::Confirmation` (module
+  made private in 4.x).
+
+### Security
+
+- Resolved RUSTSEC-2025-0057 (fxhash, unmaintained transitive dep via
+  fxprof-processed-profile) and eliminated the cap-rand =0.8.5 pin that
+  triggered GHSA-h395-gr6q-cpjc. Picks up 9 months of wasmtime security
+  patches (37–45).
+- Resolved RUSTSEC-2024-0384 (instant via lapin async-io 1.x chain), already
+  resolved by the lapin 3.0 upgrade.
+- RUSTSEC-2025-0134 suppression and `nom 7` skip retained in `deny.toml` with
+  corrected dependency chain comments; stale `windows-sys 0.59` skip removed.
+- Workspace `rand` stays at 0.8 (ed25519-dalek 2.x / p256 0.13 require
+  rand_core 0.6); wasmtime 45 pulls rand 0.10 as a separate transitive dep
+  tree.
+
 ## [0.1.3] — 2026-06-06
 
 ### Fixed
@@ -441,6 +484,7 @@ AI SDK, OpenAI Agents, Pydantic AI.
   `spec/` => `definitions/`, `policies/` => `definitions/policies/`.
   Install-output layouts (`.latchgate/`, `share/latchgate/`) unchanged.
 
+[0.1.4]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.4
 [0.1.3]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.3
 [0.1.2]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.2
 [0.1.1]: https://github.com/latchgate-ai/latchgate/releases/tag/v0.1.1
