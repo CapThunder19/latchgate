@@ -447,17 +447,20 @@ jobs:
           minisign -v
 
       - name: Sign release artifacts and install.sh
+        env:
+          MINISIGN_KEY: ${{ secrets.MINISIGN_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
         run: |
-          echo "${{ secrets.MINISIGN_KEY }}" > /tmp/minisign.key
+          printenv MINISIGN_KEY > /tmp/minisign.key
           trap 'rm -f /tmp/minisign.key' EXIT
 
           for f in artifacts/*.tar.gz artifacts/*-checksums.sha256; do
-            echo "${{ secrets.MINISIGN_PASSWORD }}" \
+            printenv MINISIGN_PASSWORD \
               | minisign -S -s /tmp/minisign.key -m "$f" -t "$(basename "$f") — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           done
 
           cp repo/install.sh artifacts/install.sh
-          echo "${{ secrets.MINISIGN_PASSWORD }}" \
+          printenv MINISIGN_PASSWORD \
             | minisign -S -s /tmp/minisign.key -m artifacts/install.sh \
               -t "install.sh — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
