@@ -2398,7 +2398,7 @@ impl TuiScreen for ConfigScreen {
 
             // Fetch policy ACL when Principals tab is active.
             if self.active_tab == SubTab::Principals
-                && (!self.policy_fetched || self.tick_count % 10 == 0)
+                && (!self.policy_fetched || self.tick_count.is_multiple_of(10))
             {
                 if let Ok(resp) = client.policy_show(auth, None).await {
                     self.policy_version = resp["policy_version"].as_str().unwrap_or("").to_string();

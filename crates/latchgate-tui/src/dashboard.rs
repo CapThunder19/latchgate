@@ -401,7 +401,7 @@ impl TuiScreen for DashboardScreen {
 
             // Chain verification is expensive — run on first tick, every 30th,
             // or when the operator forced a refresh.
-            if self.tick_count == 1 || self.tick_count % 30 == 0 || self.force_refresh {
+            if self.tick_count == 1 || self.tick_count.is_multiple_of(30) || self.force_refresh {
                 if let Ok(v) = client.verify_chain(auth).await {
                     self.chain_status = Some(v);
                 }
