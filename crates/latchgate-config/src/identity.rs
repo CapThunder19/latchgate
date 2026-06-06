@@ -27,18 +27,15 @@ impl Default for IdentityConfig {
 /// Supported identity provider backends.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum IdentityProviderKind {
     /// No identity verification. Any process with socket access gets a lease.
+    #[default]
     None,
     /// Unix SO_PEERCRED — verifies caller PID/UID via kernel.
     Peercred,
 }
 
-impl Default for IdentityProviderKind {
-    fn default() -> Self {
-        Self::None
-    }
-}
 
 /// Peercred identity provider configuration.
 #[derive(Debug, Clone, Deserialize, Default)]

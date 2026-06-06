@@ -797,7 +797,7 @@ impl McpServer {
                             token, poll_count, None,
                         ));
                     }
-                    if poll_count % 5 == 0 {
+                    if poll_count.is_multiple_of(5) {
                         self.send_notification(&JsonRpcNotification::log_message(
                             "info",
                             format!(
