@@ -10,23 +10,24 @@ jobs:
           curl -fsSL "https://github.com/jedisct1/minisign/releases/download/0.11/minisign-0.11-linux.tar.gz" \
             | tar xz --strip-components=2 -C /usr/local/bin minisign-linux/x86_64/minisign
 
-      - name: Diagnose secret format
+      - name: Diagnose key format
         env:
           MINISIGN_KEY: ${{ secrets.MINISIGN_KEY }}
         run: |
-          echo "=== Raw printenv ==="
+          echo "=== printenv (raw) ==="
           printenv MINISIGN_KEY | wc -l
           printenv MINISIGN_KEY | wc -c
-          printenv MINISIGN_KEY | cat -A | head -c 80
-          echo
-          echo "=== Line-by-line structure ==="
-          printenv MINISIGN_KEY | while IFS= read -r line; do
-            echo "line: ${#line} chars, starts with: ${line:0:20}..."
-          done
-          echo "=== Check for \\r ==="
-          printenv MINISIGN_KEY | od -c | grep -c '\\r' || echo "no \\r found"
+          echo "=== after tr -d \\r ==="
+          printenv MINISIGN_KEY | tr -d '\r' | wc -l
+          printenv MINISIGN_KEY | tr -d '\r' | wc -c
+          echo "=== check for \\r ==="
+          if printenv MINISIGN_KEY | grep -qP '\r'; then
+            echo "FOUND carriage returns"
+          else
+            echo "no carriage returns"
+          fi
 
-      - name: Test signing (printenv)
+      - name: "CURRENT (broken): printenv without strip"
         env:
           MINISIGN_KEY: ${{ secrets.MINISIGN_KEY }}
           MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
@@ -34,34 +35,18 @@ jobs:
           echo "test" > /tmp/test.txt
           printenv MINISIGN_KEY > /tmp/minisign.key
           printenv MINISIGN_PASSWORD | minisign -S -s /tmp/minisign.key -m /tmp/test.txt \
-            && echo "SUCCESS: printenv works" \
-            || echo "FAILED: printenv"
-          rm -f /tmp/minisign.key /tmp/test.txt.minisig
+            && echo "SUCCESS" || echo "FAILED"
+          rm -f /tmp/minisign.key /tmp/test.txt /tmp/test.txt.minisig
 
-      - name: Test signing (printenv + strip CR)
+      - name: "FIX: printenv + strip CR"
         env:
           MINISIGN_KEY: ${{ secrets.MINISIGN_KEY }}
           MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
         run: |
           echo "test" > /tmp/test.txt
           printenv MINISIGN_KEY | tr -d '\r' > /tmp/minisign.key
-          printenv MINISIGN_PASSWORD | minisign -S -s /tmp/minisign.key -m /tmp/test.txt \
-            && echo "SUCCESS: strip CR works" \
-            || echo "FAILED: strip CR"
-          rm -f /tmp/minisign.key /tmp/test.txt.minisig
-
-      - name: Test signing (base64 decode)
-        env:
-          MINISIGN_KEY_B64: ${{ secrets.MINISIGN_KEY_B64 }}
-          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
-        run: |
-          if [ -z "$MINISIGN_KEY_B64" ]; then
-            echo "SKIP: MINISIGN_KEY_B64 secret not set"
-            exit 0
-          fi
-          echo "test" > /tmp/test.txt
-          printenv MINISIGN_KEY_B64 | base64 -d > /tmp/minisign.key
-          printenv MINISIGN_PASSWORD | minisign -S -s /tmp/minisign.key -m /tmp/test.txt \
-            && echo "SUCCESS: base64 works" \
-            || echo "FAILED: base64"
-          rm -f /tmp/minisign.key /tmp/test.txt.minisig
+          LINES=$(wc -l < /tmp/minisign.key)
+          echo "Key file: ${LINES} lines, $(wc -c < /tmp/minisign.key) bytes"
+          printenv MINISIGN_PASSWORD | minisign -S -s /tmp/minisign.key -m /tmp/test.txt
+          echo "Signing succeeded — fix is confirmed"
+          rm -f /tmp/minisign.key /tmp/test.txt /tmp/test.txt.minisig
