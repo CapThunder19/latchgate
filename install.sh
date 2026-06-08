@@ -309,7 +309,6 @@ main() {
 
     # --- Download ---
 
-    local tmpdir
     tmpdir="$(mktemp -d)"
     trap 'rm -rf "$tmpdir"' EXIT
 
