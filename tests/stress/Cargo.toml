@@ -17,6 +17,9 @@ latchgate-auth      = { workspace = true }
 latchgate-policy    = { workspace = true }
 latchgate-providers = { workspace = true }
 latchgate-cli       = { workspace = true }
+latchgate-crypto    = { workspace = true }
+latchgate-ledger    = { workspace = true }
+latchgate-registry  = { workspace = true }
 
 tokio      = { workspace = true }
 serde_json = { workspace = true }
@@ -25,5 +28,6 @@ hex        = { workspace = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+
 [lints]
 workspace = true
