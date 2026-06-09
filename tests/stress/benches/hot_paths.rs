@@ -8,6 +8,7 @@
 //!   5. JSON Schema request validation (pre-compiled validator)
 //!   6. File path glob matching (deny-overrides-allow)
 //!   7. Ed25519 grant sign + verify (kid-based lookup)
+//!   8. Audit event construction (full builder chain)
 //!
 //! Run: `cargo bench --package latchgate-stress`
 //!
@@ -276,6 +277,39 @@ fn bench_grant_sign_verify(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
+// 8. Audit event construction (full builder chain)
+// ---------------------------------------------------------------------------
+
+fn bench_audit_event_build(c: &mut Criterion) {
+    // Imported from crate root — events module is pub(crate).
+    use latchgate_ledger::{AuditEventBuilder, Decision, EventType};
+    use std::sync::Arc;
+
+    // In production, action_version arrives as Arc<str> from the registry.
+    // Pre-allocate so the hot loop measures clone (refcount bump), not alloc.
+    let action_version: Arc<str> = Arc::from("0.1.0");
+
+    c.bench_function("audit_event_build_full", |b| {
+        b.iter(|| {
+            let event = AuditEventBuilder::new("trace-bench-001", EventType::ActionCall)
+                .principal("bench-principal", "bench-session", "bench-jti")
+                .identity_method("dpop")
+                .action(
+                    "http_get",
+                    Some(action_version.clone()),
+                    "deadbeef",
+                    "digest_ok",
+                )
+                .request("cafebabe", None)
+                .risk_level("low")
+                .decision(Decision::Allow)
+                .build();
+            black_box(event)
+        })
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -296,5 +330,6 @@ criterion_group!(
     bench_schema_validation,
     bench_path_evaluation,
     bench_grant_sign_verify,
+    bench_audit_event_build,
 );
 criterion_main!(benches);
