@@ -1,9 +1,10 @@
 //! Hot-path benchmarks for latency-sensitive per-request operations.
 //!
-//! Three operations dominate the auth pipeline cost per request:
+//! Per-request critical paths currently benchmarked:
 //!   1. DPoP proof verification (P-256 ECDSA sign + verify round-trip)
 //!   2. Policy evaluation (embedded Rego via regorus)
 //!   3. WASM module instantiation (per-call cost for short tasks)
+//!   4. Lease token issuance (P-256 JWT signing)
 //!
 //! Run: `cargo bench --package latchgate-stress`
 //!
@@ -144,6 +145,42 @@ fn bench_wasm_instantiation(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
+// 4. Lease token issuance (P-256 JWT)
+// ---------------------------------------------------------------------------
+
+fn bench_lease_issuance(c: &mut Criterion) {
+    use latchgate_auth::issuer::jwt::{generate_keypair, sign_lease, CnfClaim, LeaseClaims};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let (signing_key, _) = generate_keypair().unwrap();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let claims = LeaseClaims {
+        iss: "latchgate".into(),
+        sub: "bench-agent".into(),
+        aud: "latchgate".into(),
+        exp: now + 300,
+        nbf: now - 1,
+        iat: now,
+        jti: "bench-jti-001".into(),
+        session_id: "bench-session".into(),
+        scope: vec!["tools:call".into()],
+        budgets: None,
+        cnf: CnfClaim {
+            jkt: "bench-thumbprint".into(),
+        },
+        owner: None,
+    };
+
+    c.bench_function("lease_sign_p256_jwt", |b| {
+        b.iter(|| black_box(sign_lease(black_box(&claims), &signing_key)))
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -159,6 +196,7 @@ criterion_group!(
     benches,
     bench_dpop_sign_verify,
     bench_policy_eval,
-    bench_wasm_instantiation
+    bench_wasm_instantiation,
+    bench_lease_issuance,
 );
 criterion_main!(benches);
