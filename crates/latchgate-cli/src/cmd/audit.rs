@@ -33,7 +33,6 @@ fn json_output(events: &[serde_json::Value]) -> serde_json::Value {
     json!({ "events": events })
 }
 
-
 /// Run the `audit` command. Returns exit code.
 pub async fn run(
     config: &Config,
@@ -50,7 +49,6 @@ pub async fn run(
         }
     };
     let limit = params.limit.unwrap_or(20);
-
 
     let events = match client.audit_events(auth, &params).await {
         Ok(e) => e,
