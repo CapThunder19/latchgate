@@ -669,11 +669,14 @@ mod tests {
             ath,
         };
         let proof = sign_jwt_es256(&sk_a, &header_b, &payload).unwrap();
+        // The embedded JWK (pk_b) does not match cnf_jkt_a. In the cache-miss
+        // path, the thumbprint binding check in `extract_bound_key` catches this
+        // before signature verification — producing BadKey, not BadSig.
         let cnf_jkt_a = compute_jwk_thumbprint(&pk_a.x, &pk_a.y).unwrap();
         assert!(matches!(
             verify_dpop_proof(&proof, TEST_HTM, TEST_HTU, &lease, &cnf_jkt_a, &cache),
             Err(DPoPVerifyError::InvalidProof {
-                kind: DpopRejectKind::BadSig,
+                kind: DpopRejectKind::BadKey,
                 ..
             })
         ));

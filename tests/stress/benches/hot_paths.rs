@@ -26,6 +26,7 @@ fn bench_dpop_sign_verify(c: &mut Criterion) {
     use latchgate_auth::dpop::{
         compute_ath, compute_jwk_thumbprint, generate_dpop_keypair, sign_dpop_proof,
     };
+    use latchgate_auth::DPoPKeyCache;
 
     let (sk, pk) = generate_dpop_keypair().unwrap();
     let jkt = compute_jwk_thumbprint(&pk.x, &pk.y).unwrap();
@@ -33,12 +34,13 @@ fn bench_dpop_sign_verify(c: &mut Criterion) {
     let htu = "http://localhost:3000/v1/actions/http_get/execute";
     let lease_jwt = "eyJhbGciOiJFUzI1NiJ9.bench-lease-placeholder";
     let ath = compute_ath(lease_jwt);
+    let key_cache = DPoPKeyCache::new();
 
     c.bench_function("dpop_sign_verify_p256", |b| {
         b.iter(|| {
             let jti = format!("bench-{}", nanos_id());
             let proof = sign_dpop_proof(&sk, htm, htu, &ath, &jti).unwrap();
-            let result = verify_dpop_proof(&proof, htm, htu, lease_jwt, &jkt);
+            let result = verify_dpop_proof(&proof, htm, htu, lease_jwt, &jkt, &key_cache);
             black_box(result)
         })
     });
