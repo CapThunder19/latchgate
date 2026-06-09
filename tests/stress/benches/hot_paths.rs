@@ -6,6 +6,7 @@
 //!   3. WASM module instantiation (per-call cost for short tasks)
 //!   4. Lease token issuance (P-256 JWT signing)
 //!   5. JSON Schema request validation (pre-compiled validator)
+//!   6. File path glob matching (deny-overrides-allow)
 //!
 //! Run: `cargo bench --package latchgate-stress`
 //!
@@ -212,6 +213,41 @@ fn bench_schema_validation(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
+// 6. File path glob matching (deny-overrides-allow)
+// ---------------------------------------------------------------------------
+
+fn bench_path_evaluation(c: &mut Criterion) {
+    use latchgate_core::fs_path::{compile_patterns, evaluate_path};
+    use std::path::Path;
+
+    let allowed =
+        compile_patterns(["/home/user/projects/**", "/tmp/**", "/var/data/*.csv"]).unwrap();
+
+    let denied =
+        compile_patterns(["/home/user/projects/.env", "/tmp/secrets/**", "**/.git/**"]).unwrap();
+
+    // Four paths exercising every PathDecision variant:
+    //   [0] Allowed  — matches allow, no deny
+    //   [1] Denied   — matches both, deny overrides
+    //   [2] Allowed  — matches allow, no deny
+    //   [3] NotMatched — no allow match
+    let paths = [
+        Path::new("/home/user/projects/src/main.rs"),
+        Path::new("/home/user/projects/.env"),
+        Path::new("/tmp/scratch/output.txt"),
+        Path::new("/etc/passwd"),
+    ];
+
+    c.bench_function("path_evaluate_glob_4_paths", |b| {
+        b.iter(|| {
+            for p in &paths {
+                black_box(evaluate_path(p, &allowed, &denied));
+            }
+        })
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -230,5 +266,6 @@ criterion_group!(
     bench_wasm_instantiation,
     bench_lease_issuance,
     bench_schema_validation,
+    bench_path_evaluation,
 );
 criterion_main!(benches);
