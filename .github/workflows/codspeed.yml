@@ -52,7 +52,7 @@ jobs:
         run: cargo codspeed build -p latchgate-stress
 
       - name: Run benchmarks
-        uses: CodSpeedHQ/action@v4 # TODO: pin commit hash before merge
+        uses: CodSpeedHQ/action@22143496e9f3b1d2a5224397c7f0e93cc1f5219c # v4
         with:
           mode: simulation
           run: cargo codspeed run
