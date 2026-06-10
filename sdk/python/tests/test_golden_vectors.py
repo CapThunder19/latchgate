@@ -35,13 +35,6 @@ VECTORS = json.loads(
     GOLDEN_PATH.read_text(encoding="utf-8")
 )
 
-
-def test_golden_json_exists() -> None:
-    assert GOLDEN_PATH.exists(), (
-        f"Missing golden vector file: {GOLDEN_PATH}"
-    )
-
-
 def test_vector_count() -> None:
     assert VECTORS
     assert len(VECTORS) >= 8
