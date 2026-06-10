@@ -81,6 +81,7 @@ pub async fn run(
 
         AuditOutputFormat::Jsonl => {
             print!("{}", jsonl_output(&events));
+            return 0;
         }
 
         AuditOutputFormat::Csv => {
